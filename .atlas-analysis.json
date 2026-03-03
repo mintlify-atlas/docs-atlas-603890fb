@@ -1,0 +1,91 @@
+{
+  "projectType": "sdk-library",
+  "projectName": "Paragrafs",
+  "projectDescription": "A lightweight TypeScript library for reconstructing paragraphs from AI transcriptions with timestamp support.",
+  "theme": "palm",
+  "primaryColor": "#4A90E2",
+  "lightColor": "#7BB3F0",
+  "darkColor": "#2C5F9E",
+  "navigation": {
+    "groups": [
+      {
+        "group": "Getting Started",
+        "pages": [
+          "introduction",
+          "installation",
+          "quickstart"
+        ]
+      },
+      {
+        "group": "Core Concepts",
+        "pages": [
+          "concepts/segments-and-tokens",
+          "concepts/paragraph-reconstruction",
+          "concepts/ground-truth-alignment",
+          "concepts/hints-system"
+        ]
+      },
+      {
+        "group": "Guides",
+        "pages": [
+          "guides/basic-usage",
+          "guides/timestamped-transcripts",
+          "guides/ground-truth-alignment",
+          "guides/auto-hint-generation",
+          "guides/arabic-support"
+        ]
+      },
+      {
+        "group": "API Reference",
+        "pages": [
+          "api/overview",
+          "api/transcript-builders",
+          "api/ground-truth-alignment",
+          "api/editor-helpers",
+          "api/utility-functions",
+          "api/hint-generation",
+          "api/types"
+        ]
+      },
+      {
+        "group": "Resources",
+        "pages": [
+          "resources/examples",
+          "resources/migration-guide",
+          "resources/contributing",
+          "resources/changelog"
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Segment reconstruction with natural paragraph boundaries",
+    "Timestamped formatting for transcripts",
+    "Ground-truth alignment with LCS-based synchronization",
+    "Arabic-first hint system with normalization",
+    "Auto-hint generation from token streams",
+    "Selection helpers for rich text editors"
+  ],
+  "publicApiSurface": [
+    "estimateSegmentFromToken",
+    "markTokensWithDividers",
+    "groupMarkedTokensIntoSegments",
+    "mergeShortSegmentsWithPrevious",
+    "markAndCombineSegments",
+    "mapSegmentsIntoFormattedSegments",
+    "formatSegmentsToTimestampedTranscript",
+    "updateSegmentWithGroundTruth",
+    "applyGroundTruthToSegment",
+    "mergeSegments",
+    "splitSegment",
+    "getFirstMatchingToken",
+    "getFirstTokenForSelection",
+    "createHints",
+    "generateHintsFromTokens",
+    "generateHintsFromSegments",
+    "formatSecondsToTimestamp",
+    "isEndingWithPunctuation",
+    "tokenizeGroundTruth",
+    "normalizeTokenText"
+  ]
+}
