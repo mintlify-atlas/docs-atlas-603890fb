@@ -1,0 +1,374 @@
+---
+title: Arabic Support
+description: Working with Arabic text normalization and robust hint matching
+---
+
+## Overview
+
+Paragrafs provides first-class support for Arabic text processing, including comprehensive normalization options and diacritic-tolerant matching. This is essential for working with Arabic transcriptions from speech recognition systems.
+
+## Why Arabic Normalization?
+
+Arabic text presents unique challenges:
+- **Diacritics** (تشكيل): The same word can appear with or without vowel marks
+- **Alef variants**: أ, إ, آ, ا are often used interchangeably
+- **Ya variants**: ى and ي represent the same sound
+- **Hamza positions**: ء, ؤ, ئ, أ, إ have different spellings
+- **Tatweel**: ـ (kashida) used for visual spacing
+
+Paragrafs handles all these variations to ensure robust matching.
+
+## Normalization Options
+
+The `ArabicNormalizationOptions` type controls how text is normalized:
+
+```typescript
+type ArabicNormalizationOptions = {
+  normalizeAlef?: boolean;   // Normalize all alef variants to ا
+  normalizeHamza?: boolean;  // Normalize hamza seats to standalone ء
+  normalizeYa?: boolean;     // Normalize ى to ي
+  removeTatweel?: boolean;   // Remove tatweel (ـ)
+};
+```
+
+### Default Settings
+
+Paragrafs uses Arabic-first defaults optimized for ASR:
+
+```typescript
+// Default normalization for createHints and generateHints
+{
+  normalizeAlef: true,   // ا ← أ, إ, آ
+  normalizeHamza: false, // Preserve hamza distinctions
+  normalizeYa: true,     // ي ← ى  
+  removeTatweel: true,   // Remove ـ
+}
+```
+
+## Creating Normalized Hints
+
+Use `createHints` to create hints with normalization:
+
+```typescript
+import { createHints } from 'paragrafs';
+
+// Using default normalization
+const hints = createHints(
+  'أحسن الله إليكم',
+  'بارك الله فيكم',
+  'جزاكم الله خيرا'
+);
+
+// Custom normalization
+const customHints = createHints(
+  { normalizeAlef: true, normalizeYa: true, removeTatweel: true },
+  'أحسن الله إليكم',
+  'بارك الله فيكم'
+);
+```
+
+<Note>
+Hints are normalized at creation time. During matching, tokens are normalized using the same options to ensure consistent comparison.
+</Note>
+
+## How Normalization Works
+
+<Steps>
+  <Step title="Unicode decomposition (NFD)">
+    Text is decomposed to separate base characters from combining marks.
+  </Step>
+  <Step title="Remove diacritics">
+    Arabic diacritics (harakat) and combining marks are removed: ً ٌ ٍ َ ُ ِ ّ ْ ٓ ٰ
+  </Step>
+  <Step title="Remove zero-width characters">
+    Invisible formatting characters are removed: \u200B, \u200C, \u200D, \uFEFF
+  </Step>
+  <Step title="Strip punctuation">
+    Leading and trailing punctuation is removed from each word.
+  </Step>
+  <Step title="Apply normalization options">
+    Optional normalizations (alef, ya, hamza, tatweel) are applied.
+  </Step>
+  <Step title="Unicode composition (NFC)">
+    Text is recomposed to standard Unicode form.
+  </Step>
+</Steps>
+
+## Manual Text Normalization
+
+You can normalize text directly using `normalizeTokenText`:
+
+```typescript
+import { normalizeTokenText } from 'paragrafs';
+
+// Default normalization
+const normalized = normalizeTokenText('أَحْسَنَ');
+console.log(normalized); // "احسن"
+
+// Custom normalization
+const custom = normalizeTokenText('إليكم،', {
+  normalizeAlef: true,
+  normalizeYa: true,
+  removeTatweel: true,
+});
+console.log(custom); // "اليكم"
+```
+
+### Simple Word Normalization
+
+For basic diacritic removal, use `normalizeWord`:
+
+```typescript
+import { normalizeWord } from 'paragrafs';
+
+const word = normalizeWord('أَحْسَنَ');
+console.log(word); // "أحسن" (diacritics removed, but alef variant preserved)
+```
+
+## Normalization Examples
+
+### Alef Normalization
+
+```typescript
+import { normalizeTokenText } from 'paragrafs';
+
+const variants = ['أحمد', 'إحسان', 'آمن', 'الله'];
+
+const normalized = variants.map(v => 
+  normalizeTokenText(v, { normalizeAlef: true })
+);
+
+console.log(normalized);
+// ["احمد", "احسان", "امن", "الله"]
+```
+
+### Ya Normalization
+
+```typescript
+const variants = ['إلى', 'علي'];
+
+const normalized = variants.map(v => 
+  normalizeTokenText(v, { normalizeYa: true })
+);
+
+console.log(normalized);
+// ["إلي", "علي"] (ى → ي)
+```
+
+### Hamza Normalization
+
+```typescript
+const variants = ['سؤال', 'مئة', 'شيء'];
+
+const normalized = variants.map(v => 
+  normalizeTokenText(v, { normalizeHamza: true })
+);
+
+console.log(normalized);
+// ["سءال", "مءة", "شيء"]
+```
+
+### Tatweel Removal
+
+```typescript
+const stretched = 'اللـــــه';
+
+const normalized = normalizeTokenText(stretched, { 
+  removeTatweel: true 
+});
+
+console.log(normalized); // "الله"
+```
+
+## Hint Matching with Normalization
+
+When hints are used, tokens are automatically normalized for matching:
+
+```typescript
+import { createHints, markTokensWithDividers } from 'paragrafs';
+
+// Create hints with normalization
+const hints = createHints(
+  { normalizeAlef: true, normalizeYa: true },
+  'أحسن الله إليكم'
+);
+
+// These tokens will match even with different diacritics/alef variants
+const tokens = [
+  { start: 0, end: 1, text: 'أَحْسَنَ' },   // Different diacritics
+  { start: 1, end: 2, text: 'اللهُ' },      // Different alef in الله
+  { start: 2, end: 3, text: 'إلَيْكُمْ' },  // إ vs ا, different diacritics
+];
+
+const marked = markTokensWithDividers(tokens, {
+  fillers: [],
+  gapThreshold: 999,
+  hints,
+});
+
+// An ALWAYS_BREAK marker will be inserted before the matched hint
+```
+
+## Multi-Word Hint Matching
+
+Hints support multi-word phrases with robust normalization:
+
+```typescript
+import { createHints, markTokensWithDividers } from 'paragrafs';
+
+const hints = createHints(
+  { normalizeAlef: true, normalizeYa: true },
+  'أحسن الله إليكم',      // 3-word phrase
+  'بارك الله فيكم',        // 3-word phrase  
+  'جزاكم الله خيرا'       // 3-word phrase
+);
+
+const tokens = [
+  { start: 0, end: 1, text: 'أَحْسَنَ' },
+  { start: 1, end: 2, text: 'اللهُ' },
+  { start: 2, end: 3, text: 'إلَيْكُمْ،' },
+  { start: 4, end: 5, text: 'الحمد' },
+  { start: 5, end: 6, text: 'لله' },
+];
+
+const marked = markTokensWithDividers(tokens, {
+  fillers: [],
+  gapThreshold: 2,
+  hints,
+});
+
+// The 3-word phrase "أحسن الله إليكم" is matched despite variations
+```
+
+## Punctuation Handling
+
+Paragrafs recognizes Arabic punctuation for segment breaks:
+
+```typescript
+import { isEndingWithPunctuation } from 'paragrafs';
+
+// Arabic and English punctuation
+console.log(isEndingWithPunctuation('السلام.')); // true (.)
+console.log(isEndingWithPunctuation('كيف حالك؟')); // true (؟)
+console.log(isEndingWithPunctuation('مرحبا!')); // true (!)
+console.log(isEndingWithPunctuation('والله؛')); // true (؛)
+console.log(isEndingWithPunctuation('نعم…')); // true (…)
+```
+
+Supported punctuation marks:
+- Period: `.`
+- Question mark: `?` and `؟` (Arabic)
+- Exclamation: `!`  
+- Semicolon: `؛` (Arabic)
+- Ellipsis: `…`
+
+## Complete Example
+
+Here's a full workflow for processing Arabic transcriptions:
+
+```typescript
+import {
+  generateHintsFromSegments,
+  createHints,
+  markAndCombineSegments,
+  formatSegmentsToTimestampedTranscript,
+} from 'paragrafs';
+
+// Arabic transcription segments
+const segments = [
+  {
+    start: 0,
+    end: 5,
+    text: 'بسم الله الرحمن الرحيم',
+    tokens: [
+      { start: 0, end: 1, text: 'بسم' },
+      { start: 1, end: 2, text: 'الله' },
+      { start: 2, end: 3, text: 'الرحمن' },
+      { start: 3, end: 4, text: 'الرحيم' },
+    ],
+  },
+  // ... more segments ...
+];
+
+// Step 1: Mine common Arabic phrases
+const mined = generateHintsFromSegments(segments, {
+  minN: 2,
+  maxN: 5,
+  minCount: 2,
+  normalization: {
+    normalizeAlef: true,
+    normalizeYa: true,
+    removeTatweel: true,
+  },
+});
+
+// Step 2: Create hints from discovered phrases
+const hints = createHints(
+  { normalizeAlef: true, normalizeYa: true },
+  ...mined.slice(0, 20).map(h => h.phrase)
+);
+
+// Step 3: Process with hints
+const options = {
+  fillers: [],
+  gapThreshold: 2,
+  maxSecondsPerSegment: 15,
+  minWordsPerSegment: 4,
+  hints,
+};
+
+const marked = markAndCombineSegments(segments, options);
+const transcript = formatSegmentsToTimestampedTranscript(marked, 10);
+
+console.log(transcript);
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Always use consistent normalization">
+    Ensure `createHints`, `generateHintsFromTokens`, and `markTokensWithDividers` all use the same normalization options. Mismatched settings will prevent hints from matching.
+  </Accordion>
+
+  <Accordion title="Enable alef and ya normalization">
+    For Arabic ASR, always enable `normalizeAlef` and `normalizeYa` as these variants are commonly confused by speech recognition systems.
+  </Accordion>
+
+  <Accordion title="Be cautious with hamza normalization">
+    Hamza normalization (`normalizeHamza`) can be aggressive and may collapse semantically different words. Only enable if you're seeing hamza-related matching issues.
+  </Accordion>
+
+  <Accordion title="Handle mixed content carefully">
+    If your transcriptions mix Arabic and English, test normalization on sample data to ensure English words aren't affected unexpectedly.
+  </Accordion>
+</AccordionGroup>
+
+## Normalization Reference
+
+### Characters Affected
+
+| Option | Input Characters | Output |
+|--------|-----------------|--------|
+| `normalizeAlef` | أ إ آ | ا |
+| `normalizeYa` | ى | ي |
+| `normalizeHamza` | ؤ (waw+hamza)<br/>ئ (ya+hamza) | ء<br/>ء |
+| `removeTatweel` | ـ | (removed) |
+| Always removed | َ ُ ِ ً ٌ ٍ ّ ْ ٓ ٰ | (removed) |
+
+### Unicode Ranges
+
+- **Arabic diacritics**: `\u064B-\u065F`
+- **Combining marks**: `\p{Mn}` (Unicode category)
+- **Zero-width chars**: `\u200B-\u200D`, `\uFEFF`
+- **Punctuation**: `\p{P}` (Unicode category)
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Basic Usage" icon="rocket" href="/guides/basic-usage">
+    Review the fundamentals of Paragrafs
+  </Card>
+  <Card title="Auto-Hint Generation" icon="sparkles" href="/guides/auto-hint-generation">
+    Learn how to mine frequent Arabic phrases
+  </Card>
+</CardGroup>

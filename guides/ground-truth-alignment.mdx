@@ -1,0 +1,273 @@
+---
+title: Ground Truth Alignment
+description: Align AI-generated tokens with human-edited text for improved transcription accuracy
+---
+
+## Overview
+
+Ground truth alignment is a powerful feature that allows you to synchronize AI-generated transcription tokens with human-edited text. This is essential when you have corrected transcriptions and want to preserve the original timing information while using the accurate text.
+
+## Why Alignment Matters
+
+AI transcription services often make mistakes:
+- Mishearing words ("Buick" instead of "quick")
+- Missing words entirely
+- Adding extra words
+- Incorrect punctuation
+
+Ground truth alignment fixes these errors while preserving the timing data, giving you the best of both worlds.
+
+## Basic Alignment
+
+Use `updateSegmentWithGroundTruth` to align a segment with corrected text:
+
+```typescript
+import { updateSegmentWithGroundTruth } from 'paragrafs';
+
+const rawSegment = {
+  start: 0,
+  end: 10,
+  text: 'The Buick crown flock jumps right over the crazy dog.',
+  tokens: [
+    { start: 0, end: 1, text: 'The' },
+    { start: 1, end: 2, text: 'Buick' },
+    { start: 2, end: 3, text: 'crown' },
+    { start: 3, end: 4, text: 'flock' },
+    { start: 4, end: 5, text: 'jumps' },
+    { start: 5, end: 6, text: 'right' },
+    { start: 6, end: 7, text: 'over' },
+    { start: 7, end: 8, text: 'the' },
+    { start: 8, end: 9, text: 'crazy' },
+    { start: 9, end: 10, text: 'dog.' },
+  ],
+};
+
+const aligned = updateSegmentWithGroundTruth(
+  rawSegment,
+  'The quick brown fox jumps right over the lazy dog.'
+);
+
+console.log(aligned.tokens);
+// Each token now matches the ground-truth words exactly,
+// with missing words interpolated where needed.
+```
+
+## How It Works
+
+<Steps>
+  <Step title="Tokenize ground truth">
+    The ground truth text is tokenized into words, with punctuation properly attached to preceding words.
+  </Step>
+  <Step title="LCS alignment">
+    A Longest Common Subsequence (LCS) algorithm finds the best alignment between AI tokens and ground truth words.
+  </Step>
+  <Step title="Mark unknown tokens">
+    Tokens that don't match the ground truth are marked with `isUnknown: true`.
+  </Step>
+  <Step title="Interpolate timings">
+    Missing words in the AI transcription receive interpolated timestamps based on surrounding tokens.
+  </Step>
+</Steps>
+
+## Understanding GroundedToken
+
+After alignment, tokens become `GroundedToken` objects:
+
+```typescript
+type GroundedToken = Token & {
+  isUnknown?: boolean;  // true if this token wasn't in the AI transcription
+};
+
+type GroundedSegment = Omit<Segment, 'tokens'> & {
+  tokens: GroundedToken[];
+};
+```
+
+Tokens with `isUnknown: true` are words from the ground truth that weren't in the original AI transcription. Their timestamps are interpolated.
+
+## Applying Ground Truth (Production)
+
+For production use, you typically want to filter out unknown tokens. Use `applyGroundTruthToSegment`:
+
+```typescript
+import { applyGroundTruthToSegment } from 'paragrafs';
+
+const rawSegment = {
+  start: 0,
+  end: 10,
+  text: 'The Buick crown flock jumps right over the crazy dog.',
+  tokens: [
+    { start: 0, end: 1, text: 'The' },
+    { start: 1, end: 2, text: 'Buick' },
+    { start: 2, end: 3, text: 'crown' },
+    { start: 3, end: 4, text: 'flock' },
+    { start: 4, end: 5, text: 'jumps' },
+    { start: 5, end: 6, text: 'right' },
+    { start: 6, end: 7, text: 'over' },
+    { start: 7, end: 8, text: 'the' },
+    { start: 8, end: 9, text: 'crazy' },
+    { start: 9, end: 10, text: 'dog.' },
+  ],
+};
+
+const cleanSegment = applyGroundTruthToSegment(
+  rawSegment,
+  'The quick brown fox jumps right over the lazy dog.'
+);
+
+// cleanSegment.tokens only includes matched tokens with accurate timings
+```
+
+<Note>
+`applyGroundTruthToSegment` wraps `updateSegmentWithGroundTruth` and filters out tokens where `isUnknown === true`, giving you production-ready output.
+</Note>
+
+## Ground Truth Tokenization
+
+The `tokenizeGroundTruth` function properly handles punctuation:
+
+```typescript
+import { tokenizeGroundTruth } from 'paragrafs';
+
+const tokens = tokenizeGroundTruth('Hello, world! How are you?');
+console.log(tokens);
+// Output: ['Hello,', 'world!', 'How', 'are', 'you?']
+```
+
+Punctuation is attached to the preceding word rather than creating separate tokens, ensuring better alignment with AI transcriptions.
+
+## Working with Multiple Segments
+
+You can align entire transcripts by processing each segment:
+
+```typescript
+import { applyGroundTruthToSegment } from 'paragrafs';
+
+const segments = [
+  {
+    start: 0,
+    end: 5,
+    text: 'The quik brown focks',
+    tokens: [/* ... */],
+  },
+  {
+    start: 6,
+    end: 10,
+    text: 'jumps ova the dog',
+    tokens: [/* ... */],
+  },
+];
+
+const groundTruths = [
+  'The quick brown fox',
+  'jumps over the dog',
+];
+
+const alignedSegments = segments.map((segment, i) =>
+  applyGroundTruthToSegment(segment, groundTruths[i])
+);
+```
+
+## Merging and Splitting Segments
+
+Paragrafs provides utilities for segment manipulation:
+
+### Merge Segments
+
+```typescript
+import { mergeSegments } from 'paragrafs';
+
+const segment1 = {
+  start: 0,
+  end: 5,
+  text: 'Hello world',
+  tokens: [/* ... */],
+};
+
+const segment2 = {
+  start: 6,
+  end: 10,
+  text: 'How are you',
+  tokens: [/* ... */],
+};
+
+const merged = mergeSegments([segment1, segment2], ' ');
+// Creates a single segment spanning both time ranges
+```
+
+### Split Segment
+
+```typescript
+import { splitSegment } from 'paragrafs';
+
+const segment = {
+  start: 0,
+  end: 10,
+  text: 'This is a long segment',
+  tokens: [/* ... */],
+};
+
+const [first, second] = splitSegment(segment, 5);
+// Splits at 5 seconds into two segments
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="When to use updateSegmentWithGroundTruth vs applyGroundTruthToSegment">
+    Use `updateSegmentWithGroundTruth` when you need to see which words were missing or incorrect (for debugging or analysis). Use `applyGroundTruthToSegment` for production output where you only want accurate, timestamped tokens.
+  </Accordion>
+
+  <Accordion title="Handling large transcripts">
+    Process segments in batches to avoid memory issues with very large transcripts. The alignment algorithm is efficient, but processing thousands of segments at once can be memory-intensive.
+  </Accordion>
+
+  <Accordion title="Preserving original transcriptions">
+    Always keep a copy of the original AI transcription before applying ground truth. This allows you to re-process with different ground truth versions if needed.
+  </Accordion>
+</AccordionGroup>
+
+## Complete Example
+
+```typescript
+import {
+  estimateSegmentFromToken,
+  applyGroundTruthToSegment,
+  formatSegmentsToTimestampedTranscript,
+  markAndCombineSegments,
+} from 'paragrafs';
+
+// Raw AI transcription with errors
+const rawToken = {
+  start: 0,
+  end: 15,
+  text: 'Their our too many errors in this transcripshun',
+};
+
+// Human-corrected version
+const groundTruth = 'There are too many errors in this transcription';
+
+// Process
+const segment = estimateSegmentFromToken(rawToken);
+const aligned = applyGroundTruthToSegment(segment, groundTruth);
+
+// Format for output
+const options = {
+  fillers: [],
+  gapThreshold: 2,
+  maxSecondsPerSegment: 20,
+  minWordsPerSegment: 3,
+};
+
+const marked = markAndCombineSegments([aligned], options);
+const transcript = formatSegmentsToTimestampedTranscript(marked, 10);
+
+console.log(transcript);
+// Output shows corrected text with preserved timestamps
+```
+
+## Next Steps
+
+<Card title="Auto-Hint Generation" icon="sparkles" href="/guides/auto-hint-generation">
+  Learn how to automatically discover repeated phrases to improve segmentation
+</Card>

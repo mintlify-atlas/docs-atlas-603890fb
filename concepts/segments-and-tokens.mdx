@@ -1,0 +1,175 @@
+---
+title: 'Segments and Tokens'
+description: 'Understanding the core data structures for representing transcribed audio'
+---
+
+## Overview
+
+Paragrafs uses two fundamental types to represent transcribed audio: **Tokens** and **Segments**. Tokens are the smallest unit (individual words), while Segments are collections of tokens that represent logical groupings of speech.
+
+## Token Type
+
+A **Token** represents a single word or phrase with timing information. This is the basic building block of all transcriptions.
+
+```typescript
+export type Token = {
+    /**
+     * End time in seconds.
+     */
+    end: number;
+
+    /**
+     * Start time in seconds.
+     */
+    start: number;
+    /**
+     * The transcribed text
+     */
+    text: string;
+};
+```
+
+### Example
+
+```typescript
+const token: Token = {
+    start: 1.5,
+    end: 2.0,
+    text: "hello"
+};
+```
+
+## Segment Type
+
+A **Segment** is a higher-level structure that contains a sequence of related tokens. It extends the Token type by adding a `tokens` array for word-by-word breakdown.
+
+```typescript
+export type Segment = Token & {
+    /**
+     * Word-by-word breakdown of the transcription with individual timings
+     */
+    tokens: Token[];
+};
+```
+
+### Example
+
+```typescript
+const segment: Segment = {
+    start: 1.5,
+    end: 4.0,
+    text: "hello world how are you",
+    tokens: [
+        { start: 1.5, end: 2.0, text: "hello" },
+        { start: 2.0, end: 2.5, text: "world" },
+        { start: 2.5, end: 3.0, text: "how" },
+        { start: 3.0, end: 3.5, text: "are" },
+        { start: 3.5, end: 4.0, text: "you" }
+    ]
+};
+```
+
+<Note>
+The segment's `text` field contains the complete text, while `tokens` provides word-level timing granularity.
+</Note>
+
+## Relationship Between Tokens and Segments
+
+Segments are compositional - they contain both:
+- **Aggregate timing**: The `start` and `end` of the entire segment
+- **Granular timing**: Individual `tokens` with their own timing information
+- **Full text**: The `text` field representing all tokens combined
+
+This dual representation allows you to:
+- Display full paragraphs with `segment.text`
+- Access precise word-level timing with `segment.tokens`
+- Navigate between different granularities as needed
+
+## Creating Segments from Tokens
+
+If you have a single token with multi-word text, you can estimate a segment with word-level tokens:
+
+```typescript
+import { estimateSegmentFromToken } from 'paragrafs';
+
+const token: Token = {
+    start: 0,
+    end: 3,
+    text: "the quick brown"
+};
+
+const segment = estimateSegmentFromToken(token);
+// Result:
+// {
+//   start: 0,
+//   end: 3,
+//   text: "the quick brown",
+//   tokens: [
+//     { start: 0, end: 1, text: "the" },
+//     { start: 1, end: 2, text: "quick" },
+//     { start: 2, end: 3, text: "brown" }
+//   ]
+// }
+```
+
+<Info>
+The `estimateSegmentFromToken` function splits text by whitespace and distributes timing evenly across words.
+</Info>
+
+## Specialized Token Types
+
+### MarkedToken
+
+During processing, tokens can be marked with segment breaks:
+
+```typescript
+export type MarkedToken = Token | AlwaysBreakMarker | SegmentBreakMarker;
+```
+
+This type is used internally during paragraph reconstruction to identify natural break points.
+
+### GroundedToken
+
+When syncing with human-edited text, tokens can be marked as matched or unmatched:
+
+```typescript
+export type GroundedToken = Token & {
+    /** If true, this token was not matched during ground truth syncing */
+    isUnknown?: boolean;
+};
+```
+
+<Tip>
+Grounded tokens are produced by the [ground truth alignment](/concepts/ground-truth-alignment) process.
+</Tip>
+
+## Working with Segments
+
+Paragrafs provides utilities for manipulating segments:
+
+### Merging Segments
+
+```typescript
+import { mergeSegments } from 'paragrafs';
+
+const merged = mergeSegments([segment1, segment2], ' ');
+```
+
+### Splitting Segments
+
+```typescript
+import { splitSegment } from 'paragrafs';
+
+const [first, second] = splitSegment(segment, 5.0); // Split at 5 seconds
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Paragraph Reconstruction" href="/concepts/paragraph-reconstruction">
+    Learn how tokens are grouped into logical paragraphs
+  </Card>
+  <Card title="Ground Truth Alignment" href="/concepts/ground-truth-alignment">
+    Sync AI tokens with human-edited text
+  </Card>
+</CardGroup>

@@ -1,0 +1,228 @@
+---
+title: Timestamped Transcripts
+description: Create human-readable transcripts with timestamps for each line
+---
+
+## Overview
+
+Paragrafs can format processed segments into timestamped transcripts, making it easy to create readable transcripts with time markers. This is particularly useful for subtitle generation, video transcriptions, and accessibility features.
+
+## Basic Timestamped Output
+
+The `formatSegmentsToTimestampedTranscript` function converts marked segments into a newline-separated transcript with timestamps:
+
+```typescript
+import {
+  markAndCombineSegments,
+  formatSegmentsToTimestampedTranscript,
+} from 'paragrafs';
+
+const segments = [
+  {
+    start: 0,
+    end: 6.5,
+    text: 'The quick brown fox!',
+    tokens: [
+      { start: 0, end: 1, text: 'The' },
+      { start: 1, end: 2, text: 'quick' },
+      { start: 2, end: 3, text: 'brown' },
+      { start: 3, end: 6.5, text: 'fox!' },
+    ],
+  },
+  {
+    start: 8,
+    end: 13,
+    text: 'Jumps right over the',
+    tokens: [
+      { start: 8, end: 9, text: 'Jumps' },
+      { start: 9, end: 10, text: 'right' },
+      { start: 10, end: 11, text: 'over' },
+      { start: 12, end: 13, text: 'the' },
+    ],
+  },
+];
+
+const options = {
+  fillers: ['uh', 'umm', 'hmmm'],
+  gapThreshold: 3,
+  maxSecondsPerSegment: 12,
+  minWordsPerSegment: 3,
+};
+
+const combinedSegments = markAndCombineSegments(segments, options);
+const transcript = formatSegmentsToTimestampedTranscript(combinedSegments, 10);
+
+console.log(transcript);
+// Output:
+// 0:00: The quick brown fox!
+// 0:08: Jumps right over the
+```
+
+## How It Works
+
+<Steps>
+  <Step title="Process segments">
+    First, segments are marked and combined using `markAndCombineSegments` to identify natural break points.
+  </Step>
+  <Step title="Split by duration">
+    Lines are split based on the `maxSecondsPerLine` parameter to ensure no single line exceeds the maximum duration.
+  </Step>
+  <Step title="Format timestamps">
+    Timestamps are automatically formatted as `m:ss` (e.g., "1:05") or `h:mm:ss` (e.g., "1:02:05") for longer durations.
+  </Step>
+  <Step title="Combine into transcript">
+    All lines are joined with newlines to create the final timestamped transcript.
+  </Step>
+</Steps>
+
+## Timestamp Format
+
+Timestamps are automatically formatted based on the duration:
+
+- **Under 1 hour**: `m:ss` format (e.g., `0:00`, `1:05`, `12:45`)
+- **1 hour or more**: `h:mm:ss` format (e.g., `1:02:05`, `2:30:15`)
+
+The formatting is handled by the `formatSecondsToTimestamp` utility:
+
+```typescript
+import { formatSecondsToTimestamp } from 'paragrafs';
+
+formatSecondsToTimestamp(65);    // "1:05"
+formatSecondsToTimestamp(3725);  // "1:02:05"
+formatSecondsToTimestamp(45);    // "0:45"
+```
+
+## Custom Formatting
+
+You can provide a custom formatter function to control how each line is rendered:
+
+```typescript
+import { 
+  markAndCombineSegments, 
+  formatSegmentsToTimestampedTranscript,
+  formatSecondsToTimestamp 
+} from 'paragrafs';
+
+const customFormatter = (buffer) => {
+  const timestamp = formatSecondsToTimestamp(buffer.start);
+  const duration = (buffer.end - buffer.start).toFixed(1);
+  return `[${timestamp}] (${duration}s) ${buffer.text}`;
+};
+
+const transcript = formatSegmentsToTimestampedTranscript(
+  combinedSegments,
+  10,
+  customFormatter
+);
+
+console.log(transcript);
+// Output:
+// [0:00] (6.5s) The quick brown fox!
+// [0:08] (5.0s) Jumps right over the
+```
+
+## Line Duration Control
+
+The `maxSecondsPerLine` parameter controls when lines are split:
+
+```typescript
+// Short lines (5 seconds max)
+const shortTranscript = formatSegmentsToTimestampedTranscript(
+  combinedSegments,
+  5  // maxSecondsPerLine
+);
+
+// Longer lines (15 seconds max)
+const longTranscript = formatSegmentsToTimestampedTranscript(
+  combinedSegments,
+  15  // maxSecondsPerLine
+);
+```
+
+<Note>
+Lines are only split at natural break points (punctuation, segment breaks). The `maxSecondsPerLine` parameter sets a threshold, but the actual split happens at the next appropriate break.
+</Note>
+
+## Creating Formatted Segments
+
+If you need the segments as structured data rather than plain text, use `mapSegmentsIntoFormattedSegments`:
+
+```typescript
+import { 
+  markAndCombineSegments, 
+  mapSegmentsIntoFormattedSegments 
+} from 'paragrafs';
+
+const combinedSegments = markAndCombineSegments(segments, options);
+const formattedSegments = mapSegmentsIntoFormattedSegments(
+  combinedSegments,
+  10  // optional maxSecondsPerLine
+);
+
+// Each formatted segment has clean text and timing info
+formattedSegments.forEach(segment => {
+  console.log(`${segment.start}s - ${segment.end}s: ${segment.text}`);
+});
+```
+
+## Use Cases
+
+<CardGroup cols={2}>
+  <Card title="Subtitle Files" icon="closed-captioning">
+    Generate SRT or VTT files for video subtitles
+  </Card>
+  <Card title="Transcript Documents" icon="file-lines">
+    Create readable transcript documents with timestamps
+  </Card>
+  <Card title="Video Players" icon="play">
+    Build interactive transcripts that sync with video playback
+  </Card>
+  <Card title="Accessibility" icon="universal-access">
+    Provide accessible transcripts for audio/video content
+  </Card>
+</CardGroup>
+
+## Complete Example
+
+Here's a full example combining all the concepts:
+
+```typescript
+import {
+  estimateSegmentFromToken,
+  markAndCombineSegments,
+  formatSegmentsToTimestampedTranscript,
+  formatSecondsToTimestamp,
+} from 'paragrafs';
+
+// Raw token from transcription API
+const rawToken = {
+  start: 0,
+  end: 30,
+  text: 'Welcome to the tutorial. Today we will learn about TypeScript. It is a powerful language that adds types to JavaScript.',
+};
+
+// Convert to segment
+const segment = estimateSegmentFromToken(rawToken);
+
+// Process with options
+const options = {
+  fillers: [],
+  gapThreshold: 2,
+  maxSecondsPerSegment: 10,
+  minWordsPerSegment: 5,
+};
+
+const marked = markAndCombineSegments([segment], options);
+
+// Create timestamped transcript
+const transcript = formatSegmentsToTimestampedTranscript(marked, 8);
+
+console.log(transcript);
+// Output will show properly formatted lines with timestamps
+```
+
+## Next Steps
+
+<Card title="Ground Truth Alignment" icon="arrows-split-up-and-left" href="/guides/ground-truth-alignment">
+  Learn how to align AI-generated tokens with human-edited text for improved accuracy
+</Card>

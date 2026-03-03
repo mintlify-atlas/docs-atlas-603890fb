@@ -1,0 +1,299 @@
+---
+title: Utility Functions
+description: Helper functions for timestamps, punctuation, normalization, and more
+---
+
+Utility functions provide common text processing operations with special support for Arabic text.
+
+## createHints
+
+Creates normalized hints for robust Arabic matching (diacritics/punctuation tolerant). Hints are used by `markTokensWithDividers` to insert hard segment breaks at specific multi-word phrases.
+
+```typescript
+function createHints(
+  first: ArabicNormalizationOptions | string,
+  ...restHints: string[]
+): Hints
+```
+
+### Parameters
+
+<ParamField path="first" type="ArabicNormalizationOptions | string" required>
+  Either the first hint string, or an options object overriding the default normalization
+</ParamField>
+
+<ParamField path="restHints" type="string[]">
+  Remaining hint strings (if the first argument was an options object)
+</ParamField>
+
+### Returns
+
+<ResponseField name="hints" type="Hints">
+  A normalized hint map plus the normalization settings used for matching
+  
+  <Expandable title="properties">
+    <ResponseField name="map" type="HintMap">
+      Map of hints organized by their first word
+    </ResponseField>
+    <ResponseField name="normalization" type="ArabicNormalizationOptions">
+      The normalization settings used
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+```typescript
+import { createHints, markTokensWithDividers } from 'paragrafs';
+
+// Default normalization (Arabic-first)
+const hints = createHints(
+  'أحسن الله إليكم',
+  'بارك الله فيكم'
+);
+
+// Custom normalization
+const customHints = createHints(
+  { normalizeAlef: false, normalizeYa: true },
+  'custom hint',
+  'another hint'
+);
+
+// Use with markTokensWithDividers
+const tokens = [/* ... */];
+const marked = markTokensWithDividers(tokens, {
+  gapThreshold: 3,
+  hints
+});
+```
+
+### Default Normalization
+
+By default, hints use the following Arabic normalization:
+- `normalizeAlef: true` - Converts أإآ → ا
+- `normalizeYa: true` - Converts ى → ي
+- `removeTatweel: true` - Removes tatweel (ـ)
+- `normalizeHamza: false` - Preserves hamza variations
+
+---
+
+## formatSecondsToTimestamp
+
+Formats seconds into a human-readable timestamp.
+
+```typescript
+function formatSecondsToTimestamp(seconds: number): string
+```
+
+### Parameters
+
+<ParamField path="seconds" type="number" required>
+  The time duration in seconds
+</ParamField>
+
+### Returns
+
+<ResponseField name="timestamp" type="string">
+  Formatted timestamp string:
+  - For durations less than an hour: `m:ss` (e.g., "1:05")
+  - For durations an hour or longer: `h:mm:ss` (e.g., "1:02:05")
+</ResponseField>
+
+### Example
+
+```typescript
+import { formatSecondsToTimestamp } from 'paragrafs';
+
+console.log(formatSecondsToTimestamp(65));
+// "1:05"
+
+console.log(formatSecondsToTimestamp(3725));
+// "1:02:05"
+
+console.log(formatSecondsToTimestamp(45));
+// "0:45"
+
+console.log(formatSecondsToTimestamp(0));
+// "0:00"
+```
+
+---
+
+## isEndingWithPunctuation
+
+Checks if a text string ends with sentence-ending punctuation. Supports both English and Arabic punctuation marks.
+
+```typescript
+function isEndingWithPunctuation(text: string): boolean
+```
+
+### Parameters
+
+<ParamField path="text" type="string" required>
+  The text to check for ending punctuation
+</ParamField>
+
+### Returns
+
+<ResponseField name="hasPunctuation" type="boolean">
+  `true` if the text ends with punctuation, `false` otherwise
+</ResponseField>
+
+### Supported Punctuation
+
+- Period: `.`
+- Question mark: `?` or `؟` (Arabic)
+- Exclamation: `!`
+- Arabic semicolon: `؛`
+- Ellipsis: `…`
+
+### Example
+
+```typescript
+import { isEndingWithPunctuation } from 'paragrafs';
+
+console.log(isEndingWithPunctuation('Hello world.'));
+// true
+
+console.log(isEndingWithPunctuation('Hello world'));
+// false
+
+console.log(isEndingWithPunctuation('كيف حالك؟'));
+// true (Arabic question mark)
+
+console.log(isEndingWithPunctuation('Wait...'));
+// false
+
+console.log(isEndingWithPunctuation('Wait…'));
+// true (ellipsis character)
+```
+
+---
+
+## tokenizeGroundTruth
+
+Tokenizes ground truth text properly, ensuring punctuation is attached to words rather than creating separate tokens.
+
+```typescript
+function tokenizeGroundTruth(groundTruth: string): string[]
+```
+
+### Parameters
+
+<ParamField path="groundTruth" type="string" required>
+  The ground truth text to tokenize
+</ParamField>
+
+### Returns
+
+<ResponseField name="tokens" type="string[]">
+  The tokenized ground truth with punctuation properly attached to preceding words
+</ResponseField>
+
+### Example
+
+```typescript
+import { tokenizeGroundTruth } from 'paragrafs';
+
+const text = 'Hello world! How are you?';
+const tokens = tokenizeGroundTruth(text);
+console.log(tokens);
+// ['Hello', 'world!', 'How', 'are', 'you?']
+// Note: punctuation is attached to words, not separate tokens
+
+// Handles Arabic punctuation
+const arabic = 'السلام عليكم! كيف حالك؟';
+const arabicTokens = tokenizeGroundTruth(arabic);
+console.log(arabicTokens);
+// ['السلام', 'عليكم!', 'كيف', 'حالك؟']
+```
+
+---
+
+## normalizeTokenText
+
+Normalizes token text for Arabic-first matching and mining. This builds on basic normalization (diacritics + trim punctuation) and adds optional Arabic-specific normalizations.
+
+Use the same normalization for:
+- Mining repeated sequences
+- Matching hints against tokens
+
+```typescript
+function normalizeTokenText(
+  text: string,
+  options?: ArabicNormalizationOptions
+): string
+```
+
+### Parameters
+
+<ParamField path="text" type="string" required>
+  The token text to normalize
+</ParamField>
+
+<ParamField path="options" type="ArabicNormalizationOptions">
+  Optional Arabic-specific normalizations
+  
+  <Expandable title="properties">
+    <ParamField path="normalizeAlef" type="boolean" default={true}>
+      Convert أإآ → ا
+    </ParamField>
+    <ParamField path="normalizeHamza" type="boolean" default={false}>
+      Normalize hamza variations
+    </ParamField>
+    <ParamField path="normalizeYa" type="boolean" default={true}>
+      Convert ى → ي
+    </ParamField>
+    <ParamField path="removeTatweel" type="boolean" default={true}>
+      Remove tatweel character (ـ)
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### Returns
+
+<ResponseField name="normalized" type="string">
+  A normalized token string suitable for comparisons
+</ResponseField>
+
+### Normalization Process
+
+1. Decomposes Unicode characters (NFD normalization)
+2. Removes zero-width characters
+3. Removes Arabic diacritics
+4. Strips leading/trailing punctuation
+5. Applies optional Arabic-specific normalizations
+6. Recomposes Unicode characters (NFC normalization)
+
+### Example
+
+```typescript
+import { normalizeTokenText } from 'paragrafs';
+
+// Remove diacritics
+const text1 = normalizeTokenText('أَحْسَنَ');
+console.log(text1);
+// 'احسن'
+
+// Normalize alef variants (default)
+const text2 = normalizeTokenText('أإآ', { normalizeAlef: true });
+console.log(text2);
+// 'ااا' → 'ا' (all become regular alef)
+
+// Preserve alef variants
+const text3 = normalizeTokenText('أإآ', { normalizeAlef: false });
+console.log(text3);
+// 'أإآ' (preserved)
+
+// Remove punctuation from edges
+const text4 = normalizeTokenText('(hello!)');
+console.log(text4);
+// 'hello'
+```
+
+### Use Cases
+
+- **Hint matching**: Normalize both hints and tokens for robust matching
+- **Phrase mining**: Normalize text before counting n-gram frequencies
+- **Search**: Normalize search queries and transcript text for better results
+- **Deduplication**: Identify duplicate phrases despite different spellings

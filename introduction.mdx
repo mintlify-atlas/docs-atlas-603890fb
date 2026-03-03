@@ -1,0 +1,70 @@
+---
+title: Introduction
+description: A lightweight TypeScript library for reconstructing paragraphs from AI transcriptions with timestamp support
+---
+
+# Welcome to Paragrafs
+
+A lightweight TypeScript library designed to reconstruct paragraphs from AI transcriptions. It helps format unstructured text with appropriate paragraph breaks, handles timestamps for transcripts, and optimizes for readability.
+
+## Key features
+
+Paragrafs provides a comprehensive toolkit for working with AI-generated transcriptions:
+
+<CardGroup cols={2}>
+  <Card title="Segment reconstruction" icon="paragraph">
+    Marks filler words, hints, and time gaps to create natural paragraph boundaries and merges overly short segments back into their predecessors
+  </Card>
+  
+  <Card title="Timestamped formatting" icon="clock">
+    Produces human-friendly transcripts with optional custom formatting callbacks and automatic timestamp rendering
+  </Card>
+  
+  <Card title="Ground-truth alignment" icon="arrows-rotate">
+    Synchronizes AI generated tokens with human edited text using LCS-based alignment, interpolating timings for missing words
+  </Card>
+  
+  <Card title="Selection helpers" icon="text-cursor">
+    Exposes utilities to find tokens for string queries or cursor selections, enabling rich text editors to jump to precise timestamps
+  </Card>
+  
+  <Card title="Arabic-first hint system" icon="language">
+    Robust multi-word hint matching using normalization (diacritics/punctuation tolerant), plus hard boundary insertion via ALWAYS_BREAK
+  </Card>
+  
+  <Card title="Auto-hint generation" icon="wand-magic-sparkles">
+    Mines frequent repeated phrases from Token[] or Segment[] and returns sorted hint candidates for Arabic-heavy transcripts
+  </Card>
+</CardGroup>
+
+## Use cases
+
+Paragrafs is perfect for:
+
+- **Transcript formatting**: Convert raw transcriptions into readable text
+- **Subtitle generation**: Create properly formatted subtitles from audio transcriptions
+- **Document reconstruction**: Rebuild properly formatted documents from extracted text
+- **Rich text editors**: Enable timestamp-aware text editing with selection helpers
+
+## Getting started
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/installation">
+    Install Paragrafs via npm, yarn, pnpm, or bun
+  </Card>
+  
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Get up and running with a working example
+  </Card>
+</CardGroup>
+
+## Built with modern tooling
+
+- **TypeScript**: Full type safety and IntelliSense support
+- **ESM modules**: Modern JavaScript module format
+- **Bun-native toolchain**: Powered by tsdown for bundling and Biome for linting
+- **Zero dependencies**: Lightweight and fast
+
+<Note>
+  Paragrafs is published to npm as `paragrafs` and is available under the MIT License.
+</Note>

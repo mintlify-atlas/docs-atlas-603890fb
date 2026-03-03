@@ -1,0 +1,230 @@
+---
+title: 'Paragraph Reconstruction'
+description: 'How Paragrafs reconstructs natural paragraphs from AI transcription tokens'
+---
+
+## Overview
+
+AI transcription services typically output a flat sequence of word-level tokens. Paragrafs reconstructs natural paragraph boundaries by analyzing timing gaps, punctuation, filler words, and custom hints.
+
+## The Reconstruction Pipeline
+
+Paragraph reconstruction happens in three stages:
+
+1. **Mark tokens with dividers** - Identify natural break points
+2. **Group into segments** - Combine tokens respecting duration limits
+3. **Merge short segments** - Avoid very short paragraphs
+
+```typescript
+import { markAndCombineSegments } from 'paragrafs';
+
+const markedSegments = markAndCombineSegments(segments, {
+    fillers: ['uh', 'um', 'hmm'],
+    gapThreshold: 1.5,              // seconds
+    maxSecondsPerSegment: 30,
+    minWordsPerSegment: 5
+});
+```
+
+## Stage 1: Marking Tokens with Dividers
+
+The `markTokensWithDividers` function identifies break points based on:
+
+### Filler Words
+
+Words like "uh", "um", "hmm" often indicate hesitation or thought breaks:
+
+```typescript
+const marked = markTokensWithDividers(tokens, {
+    fillers: ['uh', 'um', 'hmm'],
+    gapThreshold: 1.0
+});
+```
+
+<Note>
+Filler words are completely removed from the output and replaced with `SEGMENT_BREAK` markers.
+</Note>
+
+### Time Gaps
+
+Significant pauses between words suggest natural breaks:
+
+```typescript
+// If the gap between tokens exceeds gapThreshold, insert SEGMENT_BREAK
+if (prevEnd !== null && token.start - prevEnd > gapThreshold) {
+    marked.push(SEGMENT_BREAK);
+}
+```
+
+### Punctuation
+
+Tokens ending with sentence-ending punctuation (`.`, `?`, `!`, etc.) trigger breaks:
+
+```typescript
+if (isEndingWithPunctuation(token.text)) {
+    marked.push(SEGMENT_BREAK);
+}
+```
+
+Supported punctuation: `.`, `?`, `!`, `؟` (Arabic), `؛` (Arabic semicolon), `…`
+
+### Custom Hints
+
+Multi-word phrases can be marked with `ALWAYS_BREAK` to force paragraph boundaries:
+
+```typescript
+import { createHints } from 'paragrafs';
+
+const hints = createHints('next topic', 'moving on', 'in conclusion');
+
+const marked = markTokensWithDividers(tokens, {
+    gapThreshold: 1.0,
+    hints
+});
+```
+
+<Info>
+See the [Hints System](/concepts/hints-system) documentation for details on normalization and matching.
+</Info>
+
+## Stage 2: Grouping into Segments
+
+The `groupMarkedTokensIntoSegments` function combines tokens into segments while respecting:
+
+- **Maximum duration** - Segments won't exceed `maxSecondsPerSegment`
+- **Break markers** - `ALWAYS_BREAK` forces immediate segment boundaries
+- **Soft breaks** - `SEGMENT_BREAK` suggests boundaries when duration is exceeded
+
+```typescript
+const segments = groupMarkedTokensIntoSegments(markedTokens, 30);
+```
+
+### Breaking Behavior
+
+**ALWAYS_BREAK** creates hard boundaries:
+
+```typescript
+if (token === ALWAYS_BREAK) {
+    flush();  // End current segment
+    reset();  // Start new segment
+    currentSegment = [ALWAYS_BREAK];
+    continue;
+}
+```
+
+**SEGMENT_BREAK** respects duration limits:
+
+```typescript
+if (nextIsDivider && durationExceeded()) {
+    flush();
+    reset();
+}
+```
+
+## Stage 3: Merging Short Segments
+
+The `mergeShortSegmentsWithPrevious` function combines segments with fewer than `minWordsPerSegment` words:
+
+```typescript
+const merged = mergeShortSegmentsWithPrevious(segments, 5);
+```
+
+<Note>
+Segments containing `ALWAYS_BREAK` markers are never merged, preserving intentional boundaries.
+</Note>
+
+## Complete Example
+
+Here's a full reconstruction pipeline:
+
+```typescript
+import { 
+    markAndCombineSegments,
+    mapSegmentsIntoFormattedSegments,
+    createHints
+} from 'paragrafs';
+
+// 1. Create hints for domain-specific phrases
+const hints = createHints(
+    'next section',
+    'to summarize',
+    'in conclusion'
+);
+
+// 2. Mark and combine segments
+const markedSegments = markAndCombineSegments(inputSegments, {
+    fillers: ['uh', 'um'],
+    gapThreshold: 1.5,
+    maxSecondsPerSegment: 30,
+    minWordsPerSegment: 5,
+    hints
+});
+
+// 3. Format into clean segments
+const formattedSegments = mapSegmentsIntoFormattedSegments(
+    markedSegments,
+    10  // max seconds per line
+);
+```
+
+## Formatting Output
+
+### Timestamped Transcript
+
+Generate a timestamped transcript with one line per segment:
+
+```typescript
+import { formatSegmentsToTimestampedTranscript } from 'paragrafs';
+
+const transcript = formatSegmentsToTimestampedTranscript(
+    markedSegments,
+    10  // max seconds per line
+);
+
+// Output:
+// 0:00: Hello and welcome to this presentation
+// 0:05: Today we'll discuss paragraph reconstruction
+// 0:12: The algorithm works in three main stages
+```
+
+### Custom Formatting
+
+Provide your own formatter:
+
+```typescript
+const transcript = formatSegmentsToTimestampedTranscript(
+    markedSegments,
+    10,
+    (buffer) => `[${buffer.start.toFixed(1)}s] ${buffer.text}`
+);
+
+// Output:
+// [0.0s] Hello and welcome to this presentation
+// [5.2s] Today we'll discuss paragraph reconstruction
+```
+
+## Advanced: Cleanup Isolated Tokens
+
+The `cleanupIsolatedTokens` function removes unnecessary breaks that would create single-word lines:
+
+```typescript
+import { cleanupIsolatedTokens } from 'paragrafs';
+
+const cleaned = cleanupIsolatedTokens(markedTokens);
+```
+
+This removes breaks in patterns like:
+- `SEGMENT_BREAK` followed by `ALWAYS_BREAK`
+- `SEGMENT_BREAK` followed by another `SEGMENT_BREAK`
+- Breaks that would isolate a single word
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Hints System" href="/concepts/hints-system">
+    Learn about hint normalization and matching
+  </Card>
+  <Card title="Ground Truth Alignment" href="/concepts/ground-truth-alignment">
+    Sync reconstructed paragraphs with human edits
+  </Card>
+</CardGroup>

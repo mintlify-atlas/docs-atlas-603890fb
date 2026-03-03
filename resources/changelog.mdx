@@ -1,0 +1,191 @@
+---
+title: 'Changelog'
+description: 'Version history and release notes for Paragrafs'
+icon: 'clock-rotate-left'
+---
+
+## Current Version
+
+<Card title="Version 1.6.0" icon="tag">
+  The latest stable release of Paragrafs
+</Card>
+
+## Release Notes
+
+For detailed release notes, including new features, bug fixes, and breaking changes for each version, visit the GitHub releases page:
+
+<Card 
+  title="View All Releases on GitHub" 
+  icon="github" 
+  href="https://github.com/ragaeeb/paragrafs/releases"
+>
+  Complete changelog with detailed release notes for every version
+</Card>
+
+## Recent Changes
+
+### Breaking Changes
+
+The latest version includes important breaking changes:
+
+<Warning>
+  If you're upgrading from an older version, please review the [Migration Guide](/resources/migration-guide) for detailed upgrade instructions.
+</Warning>
+
+<AccordionGroup>
+  <Accordion title="Hints are Normalized by Default">
+    `createHints(...)` now uses Arabic-first normalization for matching and mining. If you relied on exact string matching, update your expectations and/or pass explicit normalization options.
+    
+    **Reference**: [src/utils/textUtils.ts:121-156](https://github.com/ragaeeb/paragrafs/blob/main/src/utils/textUtils.ts#L121-L156)
+  </Accordion>
+  
+  <Accordion title="ALWAYS_BREAK is a True Hard Boundary">
+    Segments or lines after an `ALWAYS_BREAK` must not be merged into previous segments. This creates an absolute boundary in segment processing.
+    
+    **Reference**: 
+    - [src/transcript.ts:95-167](https://github.com/ragaeeb/paragrafs/blob/main/src/transcript.ts#L95-L167)
+    - [src/transcript.ts:173-211](https://github.com/ragaeeb/paragrafs/blob/main/src/transcript.ts#L173-L211)
+  </Accordion>
+</AccordionGroup>
+
+## Version Information
+
+### Package Details
+
+<CardGroup cols={2}>
+  <Card title="Current Version" icon="tag">
+    **1.6.0**
+  </Card>
+  <Card title="License" icon="scale-balanced">
+    **MIT**
+  </Card>
+  <Card title="Package Name" icon="box">
+    **paragrafs**
+  </Card>
+  <Card title="Module Format" icon="cube">
+    **ESM**
+  </Card>
+</CardGroup>
+
+### Engine Requirements
+
+<CodeGroup>
+```json Bun
+"bun": ">=1.3.5"
+```
+
+```json Node.js
+"node": ">=24.0.0"
+```
+</CodeGroup>
+
+## Semantic Versioning
+
+Paragrafs follows [Semantic Versioning](https://semver.org/) (semver):
+
+- **Major version** (X.0.0) - Breaking changes that require migration
+- **Minor version** (0.X.0) - New features, backwards compatible
+- **Patch version** (0.0.X) - Bug fixes, backwards compatible
+
+<Tip>
+  Pin to specific versions in your `package.json` to avoid unexpected breaking changes:
+  ```json
+  {
+    "dependencies": {
+      "paragrafs": "1.6.0"
+    }
+  }
+  ```
+</Tip>
+
+## Staying Updated
+
+### GitHub Releases
+
+The most comprehensive source for version history:
+
+- **Release notes** for each version
+- **Detailed changelogs** with all changes
+- **Download links** for specific versions
+- **Git tags** for version tracking
+
+<Card 
+  title="Watch on GitHub" 
+  icon="bell" 
+  href="https://github.com/ragaeeb/paragrafs"
+>
+  Star and watch the repository to get notified about new releases
+</Card>
+
+### NPM Registry
+
+Check package versions on npm:
+
+<Card 
+  title="View on npm" 
+  icon="npm" 
+  href="https://www.npmjs.com/package/paragrafs"
+>
+  See all published versions and download statistics
+</Card>
+
+## Upgrading
+
+To upgrade to the latest version:
+
+<CodeGroup>
+```bash npm
+npm install paragrafs@latest
+```
+
+```bash pnpm
+pnpm install paragrafs@latest
+```
+
+```bash yarn
+yarn add paragrafs@latest
+```
+
+```bash bun
+bun add paragrafs@latest
+```
+</CodeGroup>
+
+<Warning>
+  Always review the [Migration Guide](/resources/migration-guide) before upgrading major versions to understand breaking changes.
+</Warning>
+
+## Release Process
+
+Paragrafs uses automated semantic release for version management:
+
+1. **Automated versioning** based on conventional commits
+2. **Automated changelog** generation
+3. **Automated npm publishing**
+4. **Automated GitHub releases**
+
+<Info>
+  The project uses [semantic-release](https://github.com/semantic-release/semantic-release) to automate the release workflow.
+</Info>
+
+## Contributing to Releases
+
+If you're contributing to Paragrafs:
+
+- Follow [conventional commit](https://www.conventionalcommits.org/) format
+- Use `feat:` for new features (minor version bump)
+- Use `fix:` for bug fixes (patch version bump)
+- Use `BREAKING CHANGE:` in commit body for breaking changes (major version bump)
+
+Learn more in the [Contributing Guide](/resources/contributing).
+
+## Need Help?
+
+<CardGroup cols={2}>
+  <Card title="Migration Guide" icon="arrow-up-right-dots" href="/resources/migration-guide">
+    Learn how to upgrade between versions
+  </Card>
+  <Card title="Report Issues" icon="github" href="https://github.com/ragaeeb/paragrafs/issues">
+    Found a bug? Let us know on GitHub
+  </Card>
+</CardGroup>

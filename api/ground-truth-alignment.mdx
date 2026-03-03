@@ -1,0 +1,267 @@
+---
+title: Ground Truth Alignment
+description: Align AI-generated tokens with human-edited text using LCS matching
+---
+
+Ground truth alignment functions use Longest Common Subsequence (LCS) algorithms to synchronize AI-generated tokens with human-edited transcripts, ensuring accurate timing for corrected text.
+
+## updateSegmentWithGroundTruth
+
+Aligns AI-generated tokens to a ground truth human-edited segment text. Uses Longest Common Subsequence (LCS) to identify anchor matches between tokenized output and ground truth. Where no matches exist, it interpolates timestamped tokens for unmatched words.
+
+```typescript
+function updateSegmentWithGroundTruth(
+  segment: Segment,
+  groundTruth: string
+): GroundedSegment
+```
+
+### Parameters
+
+<ParamField path="segment" type="Segment" required>
+  A Segment object with ground truth `text` and AI-generated `tokens`
+</ParamField>
+
+<ParamField path="groundTruth" type="string" required>
+  The ground truth text to apply to the segment's text and its tokens
+</ParamField>
+
+### Returns
+
+<ResponseField name="groundedSegment" type="GroundedSegment">
+  A new GroundedSegment with the `tokens` adjusted to match the ground truth `text` along with any unmatched tokens flagged with `isUnknown: true`
+</ResponseField>
+
+### Example
+
+```typescript
+import { updateSegmentWithGroundTruth } from 'paragrafs';
+
+const segment = {
+  start: 0,
+  end: 10,
+  text: 'The Buick crown flock jumps',
+  tokens: [
+    { start: 0, end: 1, text: 'The' },
+    { start: 1, end: 3, text: 'Buick' },
+    { start: 3, end: 5, text: 'crown' },
+    { start: 5, end: 7, text: 'flock' },
+    { start: 7, end: 10, text: 'jumps' }
+  ]
+};
+
+// Correct the AI mistakes
+const aligned = updateSegmentWithGroundTruth(
+  segment,
+  'The quick brown fox jumps'
+);
+
+console.log(aligned.tokens);
+// [
+//   { start: 0, end: 1, text: 'The' },           // matched
+//   { start: 1, end: 3, text: 'quick', isUnknown: true },  // interpolated
+//   { start: 3, end: 5, text: 'brown', isUnknown: true },  // interpolated
+//   { start: 5, end: 7, text: 'fox', isUnknown: true },    // interpolated
+//   { start: 7, end: 10, text: 'jumps' }          // matched
+// ]
+```
+
+---
+
+## applyGroundTruthToSegment
+
+Produces a segment with the ground truth replacing the text and its respective tokens. This is a convenience wrapper around `updateSegmentWithGroundTruth` that filters out unknown tokens.
+
+```typescript
+function applyGroundTruthToSegment(
+  segment: Segment,
+  groundTruth: string
+): Segment
+```
+
+### Parameters
+
+<ParamField path="segment" type="Segment" required>
+  The segment to replace the ground truth with
+</ParamField>
+
+<ParamField path="groundTruth" type="string" required>
+  The human verified transcription of the segment
+</ParamField>
+
+### Returns
+
+<ResponseField name="segment" type="Segment">
+  A segment with the ground truth applied to the segment text and its tokens (unknown tokens filtered out)
+</ResponseField>
+
+### Example
+
+```typescript
+import { applyGroundTruthToSegment } from 'paragrafs';
+
+const segment = {
+  start: 0,
+  end: 10,
+  text: 'The Buick crown flock',
+  tokens: [
+    { start: 0, end: 2.5, text: 'The' },
+    { start: 2.5, end: 5, text: 'Buick' },
+    { start: 5, end: 7.5, text: 'crown' },
+    { start: 7.5, end: 10, text: 'flock' }
+  ]
+};
+
+const corrected = applyGroundTruthToSegment(
+  segment,
+  'The quick brown fox'
+);
+
+console.log(corrected.text);
+// 'The quick brown fox'
+
+console.log(corrected.tokens);
+// Only matched tokens are included (interpolated tokens are filtered out)
+```
+
+---
+
+## mergeSegments
+
+Merges multiple segments into a single segment. Useful for combining sequential segments into one continuous block.
+
+```typescript
+function mergeSegments(
+  segments: Segment[],
+  delimiter?: string
+): Segment
+```
+
+### Parameters
+
+<ParamField path="segments" type="Segment[]" required>
+  Array of segments to merge into one
+</ParamField>
+
+<ParamField path="delimiter" type="string" default=" ">
+  Optional string to join segment texts (defaults to space)
+</ParamField>
+
+### Returns
+
+<ResponseField name="merged" type="Segment">
+  A single merged segment containing all tokens with timing from first to last segment
+</ResponseField>
+
+### Example
+
+```typescript
+import { mergeSegments } from 'paragrafs';
+
+const segments = [
+  {
+    start: 0,
+    end: 5,
+    text: 'Hello world',
+    tokens: [
+      { start: 0, end: 2, text: 'Hello' },
+      { start: 2, end: 5, text: 'world' }
+    ]
+  },
+  {
+    start: 5,
+    end: 10,
+    text: 'How are you',
+    tokens: [
+      { start: 5, end: 6, text: 'How' },
+      { start: 6, end: 8, text: 'are' },
+      { start: 8, end: 10, text: 'you' }
+    ]
+  }
+];
+
+const merged = mergeSegments(segments);
+console.log(merged);
+// {
+//   start: 0,
+//   end: 10,
+//   text: 'Hello world How are you',
+//   tokens: [/* all 5 tokens */]
+// }
+
+// Custom delimiter
+const mergedNewline = mergeSegments(segments, '\n');
+console.log(mergedNewline.text);
+// 'Hello world\nHow are you'
+```
+
+---
+
+## splitSegment
+
+Splits a segment at a specific time point into exactly two segments. This function does the opposite of `mergeSegments`.
+
+```typescript
+function splitSegment(
+  segment: Segment,
+  splitTime: number
+): Segment[]
+```
+
+### Parameters
+
+<ParamField path="segment" type="Segment" required>
+  The segment to split
+</ParamField>
+
+<ParamField path="splitTime" type="number" required>
+  The time (in seconds) at which to split the segment. Tokens with `start < splitTime` go to the first segment, others to the second.
+</ParamField>
+
+### Returns
+
+<ResponseField name="segments" type="Segment[]">
+  An array containing exactly two segments
+</ResponseField>
+
+### Example
+
+```typescript
+import { splitSegment } from 'paragrafs';
+
+const segment = {
+  start: 0,
+  end: 10,
+  text: 'The quick brown fox',
+  tokens: [
+    { start: 0, end: 2, text: 'The' },
+    { start: 2, end: 4, text: 'quick' },
+    { start: 4, end: 7, text: 'brown' },
+    { start: 7, end: 10, text: 'fox' }
+  ]
+};
+
+const [first, second] = splitSegment(segment, 4);
+
+console.log(first);
+// {
+//   start: 0,
+//   end: 4,
+//   text: 'The quick',
+//   tokens: [
+//     { start: 0, end: 2, text: 'The' },
+//     { start: 2, end: 4, text: 'quick' }
+//   ]
+// }
+
+console.log(second);
+// {
+//   start: 4,
+//   end: 10,
+//   text: 'brown fox',
+//   tokens: [
+//     { start: 4, end: 7, text: 'brown' },
+//     { start: 7, end: 10, text: 'fox' }
+//   ]
+// }
+```

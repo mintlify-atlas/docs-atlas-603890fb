@@ -1,0 +1,400 @@
+---
+title: Transcript Builders
+description: Functions for processing tokens into formatted segments with natural breaks
+---
+
+## estimateSegmentFromToken
+
+Estimates a segment with word-level tokens from a single token with multi-word text. Splits the text by whitespace and calculates approximate timing for each word.
+
+```typescript
+function estimateSegmentFromToken(token: Token): Segment
+```
+
+### Parameters
+
+<ParamField path="token" type="Token" required>
+  The source token containing text with multiple words
+  
+  <Expandable title="properties">
+    <ParamField path="start" type="number" required>
+      Start time of the token in seconds
+    </ParamField>
+    <ParamField path="end" type="number" required>
+      End time of the token in seconds
+    </ParamField>
+    <ParamField path="text" type="string" required>
+      The multi-word text content
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### Returns
+
+<ResponseField name="segment" type="Segment">
+  A segment with the original text and estimated word-level tokens
+</ResponseField>
+
+### Example
+
+```typescript
+import { estimateSegmentFromToken } from 'paragrafs';
+
+const token = {
+  start: 0,
+  end: 5,
+  text: 'The quick brown fox'
+};
+
+const segment = estimateSegmentFromToken(token);
+console.log(segment);
+// {
+//   start: 0,
+//   end: 5,
+//   text: 'The quick brown fox',
+//   tokens: [
+//     { start: 0, end: 1.25, text: 'The' },
+//     { start: 1.25, end: 2.5, text: 'quick' },
+//     { start: 2.5, end: 3.75, text: 'brown' },
+//     { start: 3.75, end: 5, text: 'fox' }
+//   ]
+// }
+```
+
+---
+
+## markTokensWithDividers
+
+Marks tokens with segment dividers based on various criteria including filler words, hints, time gaps, and punctuation.
+
+```typescript
+function markTokensWithDividers(
+  tokens: Token[],
+  options: MarkTokensWithDividersOptions
+): MarkedToken[]
+```
+
+### Parameters
+
+<ParamField path="tokens" type="Token[]" required>
+  Array of tokens to process
+</ParamField>
+
+<ParamField path="options" type="MarkTokensWithDividersOptions" required>
+  <Expandable title="properties">
+    <ParamField path="fillers" type="string[]">
+      Optional array of filler words (e.g., "uh", "umm") to mark as segment breaks
+    </ParamField>
+    <ParamField path="gapThreshold" type="number" required>
+      Minimum time gap (in seconds) to consider a segment break
+    </ParamField>
+    <ParamField path="hints" type="Hints">
+      Hints created with createHints() to indicate when to insert a new segment break
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### Returns
+
+<ResponseField name="markedTokens" type="MarkedToken[]">
+  Tokens with segment break markers (`SEGMENT_BREAK` or `ALWAYS_BREAK`) inserted
+</ResponseField>
+
+### Example
+
+```typescript
+import { markTokensWithDividers } from 'paragrafs';
+
+const tokens = [
+  { start: 0, end: 1, text: 'Hello' },
+  { start: 1, end: 2, text: 'world.' },
+  { start: 5, end: 6, text: 'How' },  // 3-second gap
+  { start: 6, end: 7, text: 'are' },
+  { start: 7, end: 8, text: 'you?' }
+];
+
+const marked = markTokensWithDividers(tokens, {
+  fillers: ['umm', 'uh'],
+  gapThreshold: 3
+});
+// Returns tokens with SEGMENT_BREAK markers inserted after punctuation and gaps
+```
+
+---
+
+## groupMarkedTokensIntoSegments
+
+Groups marked tokens into segments based on maximum segment duration. Creates segments from tokens, splitting when the duration exceeds the specified maximum.
+
+```typescript
+function groupMarkedTokensIntoSegments(
+  markedTokens: MarkedToken[],
+  maxSecondsPerSegment: number
+): MarkedSegment[]
+```
+
+### Parameters
+
+<ParamField path="markedTokens" type="MarkedToken[]" required>
+  Array of tokens with segment break markers
+</ParamField>
+
+<ParamField path="maxSecondsPerSegment" type="number" required>
+  Maximum duration (in seconds) for a segment
+</ParamField>
+
+### Returns
+
+<ResponseField name="segments" type="MarkedSegment[]">
+  Array of marked segments
+</ResponseField>
+
+### Example
+
+```typescript
+import { markTokensWithDividers, groupMarkedTokensIntoSegments } from 'paragrafs';
+
+const tokens = [/* ... */];
+const marked = markTokensWithDividers(tokens, { gapThreshold: 3 });
+const segments = groupMarkedTokensIntoSegments(marked, 12);
+```
+
+---
+
+## mergeShortSegmentsWithPrevious
+
+Merges segments with fewer than the specified minimum words into the previous segment. This helps avoid very short segments that might break the flow of text.
+
+```typescript
+function mergeShortSegmentsWithPrevious(
+  segments: MarkedSegment[],
+  minWordsPerSegment: number
+): MarkedSegment[]
+```
+
+### Parameters
+
+<ParamField path="segments" type="MarkedSegment[]" required>
+  Array of marked segments to process
+</ParamField>
+
+<ParamField path="minWordsPerSegment" type="number" required>
+  Minimum number of words required for a segment to stand alone
+</ParamField>
+
+### Returns
+
+<ResponseField name="merged" type="MarkedSegment[]">
+  Array of merged segments (segments with `ALWAYS_BREAK` are never merged)
+</ResponseField>
+
+### Example
+
+```typescript
+import { mergeShortSegmentsWithPrevious } from 'paragrafs';
+
+const segments = [/* marked segments */];
+const merged = mergeShortSegmentsWithPrevious(segments, 3);
+// Short segments (< 3 words) are merged into previous segment
+```
+
+---
+
+## markAndCombineSegments
+
+Convenience function that processes segments through all steps: marking tokens with dividers, grouping into segments, and merging short segments.
+
+```typescript
+function markAndCombineSegments(
+  segments: Segment[],
+  options: MarkAndCombineSegmentsOptions
+): MarkedSegment[]
+```
+
+### Parameters
+
+<ParamField path="segments" type="Segment[]" required>
+  Array of input segments to process
+</ParamField>
+
+<ParamField path="options" type="MarkAndCombineSegmentsOptions" required>
+  <Expandable title="properties">
+    <ParamField path="fillers" type="string[]" required>
+      Array of filler words to mark as segment breaks
+    </ParamField>
+    <ParamField path="gapThreshold" type="number" required>
+      Minimum time gap (in seconds) to consider a segment break
+    </ParamField>
+    <ParamField path="hints" type="Hints">
+      Optional hints for multi-word phrase matching
+    </ParamField>
+    <ParamField path="maxSecondsPerSegment" type="number" required>
+      Maximum duration (in seconds) for a segment
+    </ParamField>
+    <ParamField path="minWordsPerSegment" type="number" required>
+      Minimum number of words required for a segment to stand alone
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### Returns
+
+<ResponseField name="segments" type="MarkedSegment[]">
+  Array of processed and marked segments
+</ResponseField>
+
+### Example
+
+```typescript
+import { markAndCombineSegments } from 'paragrafs';
+
+const segments = [
+  {
+    start: 0,
+    end: 10,
+    text: 'Hello world',
+    tokens: [
+      { start: 0, end: 5, text: 'Hello' },
+      { start: 5, end: 10, text: 'world' }
+    ]
+  }
+];
+
+const processed = markAndCombineSegments(segments, {
+  fillers: ['uh', 'umm'],
+  gapThreshold: 3,
+  maxSecondsPerSegment: 12,
+  minWordsPerSegment: 3
+});
+```
+
+---
+
+## mapSegmentsIntoFormattedSegments
+
+Maps marked segments into formatted segments with clean text representation. Combines the tokens into properly formatted text, respecting segment breaks and optional maximum line duration.
+
+```typescript
+function mapSegmentsIntoFormattedSegments(
+  segments: MarkedSegment[],
+  maxSecondsPerLine?: number
+): Segment[]
+```
+
+### Parameters
+
+<ParamField path="segments" type="MarkedSegment[]" required>
+  Array of marked segments to format
+</ParamField>
+
+<ParamField path="maxSecondsPerLine" type="number">
+  Optional maximum duration (in seconds) for a single line
+</ParamField>
+
+### Returns
+
+<ResponseField name="formatted" type="Segment[]">
+  Array of formatted segments with clean text (multiple lines separated by newlines)
+</ResponseField>
+
+### Example
+
+```typescript
+import { markAndCombineSegments, mapSegmentsIntoFormattedSegments } from 'paragrafs';
+
+const segments = [/* ... */];
+const marked = markAndCombineSegments(segments, {
+  fillers: [],
+  gapThreshold: 3,
+  maxSecondsPerSegment: 12,
+  minWordsPerSegment: 3
+});
+
+const formatted = mapSegmentsIntoFormattedSegments(marked, 10);
+console.log(formatted[0].text);
+// Clean text with newlines where appropriate
+```
+
+---
+
+## formatSegmentsToTimestampedTranscript
+
+Formats segments into a timestamped transcript with timestamps at the beginning of each line. Lines are split based on segment breaks and maximum line duration.
+
+```typescript
+function formatSegmentsToTimestampedTranscript(
+  segments: MarkedSegment[],
+  maxSecondsPerLine: number,
+  formatTokens?: (buffer: Token) => string
+): string
+```
+
+### Parameters
+
+<ParamField path="segments" type="MarkedSegment[]" required>
+  Array of marked segments to format
+</ParamField>
+
+<ParamField path="maxSecondsPerLine" type="number" required>
+  Maximum duration (in seconds) for a single line
+</ParamField>
+
+<ParamField path="formatTokens" type="(buffer: Token) => string">
+  Optional formatter that receives the buffered token range and returns the formatted line. When omitted, the function emits timestamp-prefixed strings.
+</ParamField>
+
+### Returns
+
+<ResponseField name="transcript" type="string">
+  Formatted transcript with timestamps (newline-separated)
+</ResponseField>
+
+### Example
+
+```typescript
+import { formatSegmentsToTimestampedTranscript } from 'paragrafs';
+
+const segments = [/* marked segments */];
+const transcript = formatSegmentsToTimestampedTranscript(segments, 10);
+console.log(transcript);
+// 0:00: The quick brown fox
+// 0:05: jumps over the lazy dog
+
+// Custom formatter
+const custom = formatSegmentsToTimestampedTranscript(segments, 10, (token) => {
+  return `[${token.start.toFixed(2)}s] ${token.text}`;
+});
+```
+
+---
+
+## cleanupIsolatedTokens
+
+Cleans up marked tokens by removing unnecessary segment breaks that would cause individual tokens to appear on their own lines.
+
+```typescript
+function cleanupIsolatedTokens(markedTokens: MarkedToken[]): MarkedToken[]
+```
+
+### Parameters
+
+<ParamField path="markedTokens" type="MarkedToken[]" required>
+  The array of marked tokens to clean up
+</ParamField>
+
+### Returns
+
+<ResponseField name="cleaned" type="MarkedToken[]">
+  A new array with unnecessary breaks removed
+</ResponseField>
+
+### Example
+
+```typescript
+import { markTokensWithDividers, cleanupIsolatedTokens } from 'paragrafs';
+
+const tokens = [/* ... */];
+const marked = markTokensWithDividers(tokens, { gapThreshold: 3 });
+const cleaned = cleanupIsolatedTokens(marked);
+// Redundant breaks that would isolate single words are removed
+```

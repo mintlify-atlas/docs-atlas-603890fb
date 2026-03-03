@@ -1,0 +1,303 @@
+---
+title: 'Ground Truth Alignment'
+description: 'LCS-based algorithm for syncing AI transcription tokens with human-edited text'
+---
+
+## Overview
+
+AI transcriptions are rarely perfect. Ground truth alignment solves the problem of syncing imperfect AI-generated tokens with human-edited text while preserving precise word-level timing information.
+
+## The Problem
+
+Given:
+- **AI tokens**: `[{text: "helo", start: 0, end: 1}, {text: "wrld", start: 1, end: 2}]`
+- **Human edit**: `"hello world"`
+
+How do we update the tokens to reflect the corrected text while keeping timing intact?
+
+## The Solution: LCS-Based Alignment
+
+Paragrafs uses the **Longest Common Subsequence (LCS)** algorithm to find reliable anchor points between AI tokens and ground truth words, then intelligently fills gaps.
+
+```typescript
+import { updateSegmentWithGroundTruth } from 'paragrafs';
+
+const corrected = updateSegmentWithGroundTruth(segment, "hello world");
+```
+
+## How It Works
+
+### Step 1: Find Anchor Points
+
+The algorithm normalizes both sequences and builds an LCS table to find matching words:
+
+```typescript
+const normalizedTokens = tokens.map(t => normalizeWord(t.text));
+const normalizedGTWords = groundTruthWords.map(normalizeWord);
+
+const lcsTable = buildLcsTable(normalizedTokens, normalizedGTWords);
+const lcsMatches = extractLcsMatches(lcsTable, normalizedTokens, normalizedGTWords);
+```
+
+<Info>
+Normalization removes diacritics, punctuation, and applies NFC/NFD Unicode normalization for robust matching.
+</Info>
+
+### Step 2: Enforce Hard Constraints
+
+First and last tokens are always anchored:
+
+```typescript
+lcsMatches.set(0, 0);  // First token always matches first word
+if (tokens.length > 1 && groundTruthWords.length > 1) {
+    lcsMatches.set(tokens.length - 1, groundTruthWords.length - 1);
+}
+```
+
+### Step 3: Process Gaps Between Anchors
+
+For each gap between anchor points:
+
+**If ground truth has more words**: Insert new tokens with estimated timing
+
+```typescript
+const createInsertionToken = (text, { gtGap, gtGapIndex, prevToken, nextToken }) => {
+    const gapStartTime = prevToken?.end ?? 0;
+    const gapEndTime = nextToken.start;
+    const timeAvailable = Math.max(0, gapEndTime - gapStartTime);
+    
+    const itemsToInsert = gtGap.length - tokenGap.length;
+    const timePerItem = itemsToInsert > 0 ? timeAvailable / itemsToInsert : 0;
+    
+    const insertionIndex = gtGapIndex - tokenGap.length;
+    const start = gapStartTime + insertionIndex * timePerItem;
+    const end = start + timePerItem;
+    
+    return { end, start, text };
+};
+```
+
+**If AI has extra tokens**: Mark them as `isUnknown: true`
+
+```typescript
+if (gtGapIndex >= gtGap.length) {
+    result.push({ ...tokenGap[tokenGapIndex], isUnknown: true });
+    tokenGapIndex++;
+}
+```
+
+**If counts match**: Replace token text while keeping timing
+
+```typescript
+result.push({ ...tokenGap[tokenGapIndex], text: gtGap[gtGapIndex] });
+```
+
+## Complete Example
+
+```typescript
+import { updateSegmentWithGroundTruth } from 'paragrafs';
+
+const segment = {
+    start: 0,
+    end: 5,
+    text: "the quik brown fox",
+    tokens: [
+        { start: 0, end: 1, text: "the" },
+        { start: 1, end: 2, text: "quik" },
+        { start: 2, end: 4, text: "brown" },
+        { start: 4, end: 5, text: "fox" }
+    ]
+};
+
+const corrected = updateSegmentWithGroundTruth(
+    segment,
+    "the quick brown fox"
+);
+
+// Result:
+// {
+//   start: 0,
+//   end: 5,
+//   text: "the quick brown fox",
+//   tokens: [
+//     { start: 0, end: 1, text: "the" },
+//     { start: 1, end: 2, text: "quick" },      // Corrected!
+//     { start: 2, end: 4, text: "brown" },
+//     { start: 4, end: 5, text: "fox" }
+//   ]
+// }
+```
+
+## Handling Insertions and Deletions
+
+### Insertions
+
+When ground truth has extra words, timing is distributed evenly:
+
+```typescript
+const segment = {
+    start: 0,
+    end: 2,
+    text: "hello world",
+    tokens: [
+        { start: 0, end: 1, text: "hello" },
+        { start: 1, end: 2, text: "world" }
+    ]
+};
+
+const corrected = updateSegmentWithGroundTruth(
+    segment,
+    "hello beautiful world"  // Added "beautiful"
+);
+
+// Result includes estimated timing for "beautiful":
+// tokens: [
+//   { start: 0, end: 1, text: "hello" },
+//   { start: 1, end: 1.5, text: "beautiful" },  // Inserted with estimated time
+//   { start: 1.5, end: 2, text: "world" }
+// ]
+```
+
+### Deletions
+
+Extra AI tokens are marked with `isUnknown: true`:
+
+```typescript
+const segment = {
+    start: 0,
+    end: 3,
+    text: "hello uh world",
+    tokens: [
+        { start: 0, end: 1, text: "hello" },
+        { start: 1, end: 2, text: "uh" },
+        { start: 2, end: 3, text: "world" }
+    ]
+};
+
+const corrected = updateSegmentWithGroundTruth(
+    segment,
+    "hello world"  // Removed "uh"
+);
+
+// Result:
+// tokens: [
+//   { start: 0, end: 1, text: "hello" },
+//   { start: 1, end: 2, text: "uh", isUnknown: true },  // Marked as unknown
+//   { start: 2, end: 3, text: "world" }
+// ]
+```
+
+<Note>
+Use `applyGroundTruthToSegment` instead of `updateSegmentWithGroundTruth` to automatically filter out unknown tokens.
+</Note>
+
+## GroundedToken Type
+
+The result of alignment produces `GroundedToken` objects:
+
+```typescript
+export type GroundedToken = Token & {
+    /** If true, this token was not matched during ground truth syncing */
+    isUnknown?: boolean;
+};
+
+export type GroundedSegment = Omit<Segment, 'tokens'> & {
+    tokens: GroundedToken[];
+};
+```
+
+## Filtering Unknown Tokens
+
+To get a clean segment without unmatched tokens:
+
+```typescript
+import { applyGroundTruthToSegment } from 'paragrafs';
+
+const clean = applyGroundTruthToSegment(segment, groundTruth);
+// Automatically filters out tokens with isUnknown: true
+```
+
+Or manually:
+
+```typescript
+const grounded = updateSegmentWithGroundTruth(segment, groundTruth);
+const clean = {
+    ...grounded,
+    tokens: grounded.tokens.filter(t => !t.isUnknown)
+};
+```
+
+## LCS Algorithm Details
+
+The implementation uses classic dynamic programming:
+
+```typescript
+export const buildLcsTable = (a: string[], b: string[]) => {
+    const m = a.length;
+    const n = b.length;
+    const table: number[][] = Array.from({ length: m + 1 }, () => 
+        Array(n + 1).fill(0)
+    );
+
+    for (let i = 0; i < m; i++) {
+        for (let j = 0; j < n; j++) {
+            if (a[i] === b[j]) {
+                table[i + 1][j + 1] = table[i][j] + 1;
+            } else {
+                table[i + 1][j + 1] = Math.max(
+                    table[i][j + 1],
+                    table[i + 1][j]
+                );
+            }
+        }
+    }
+    return table;
+};
+```
+
+<Info>
+Complexity: O(m × n) where m and n are the lengths of the token and ground truth sequences.
+</Info>
+
+## Text Normalization
+
+The `normalizeWord` function ensures robust matching:
+
+```typescript
+export const normalizeWord = (w: string) => {
+    return w
+        .normalize('NFD')                           // Decompose Unicode
+        .replace(/[\u200B-\u200D\uFEFF]/g, '')      // Remove zero-width chars
+        .replace(/\p{Mn}/gu, '')                    // Remove combining marks
+        .replace(/[\u064B-\u065F]/g, '')            // Remove Arabic diacritics
+        .replace(/^[\p{P}\p{S}\p{Cf}]+|[\p{P}\p{S}\p{Cf}]+$/gu, '')  // Trim punctuation
+        .normalize('NFC');                          // Recompose Unicode
+};
+```
+
+This handles:
+- Arabic diacritics (ً ٌ ٍ َ ُ ِ ّ etc.)
+- Zero-width characters
+- Unicode normalization (NFD/NFC)
+- Leading/trailing punctuation
+
+## Best Practices
+
+<Tip>
+Always normalize ground truth consistently with how tokens were normalized during alignment.
+</Tip>
+
+<Warning>
+Insertion timing is estimated by distributing available time evenly. For critical applications, consider manual timing adjustment.
+</Warning>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Segments and Tokens" href="/concepts/segments-and-tokens">
+    Learn about the core data structures
+  </Card>
+  <Card title="Hints System" href="/concepts/hints-system">
+    Explore normalized hint matching
+  </Card>
+</CardGroup>

@@ -1,0 +1,188 @@
+---
+title: 'Migration Guide'
+description: 'Guide for migrating to the latest version of Paragrafs'
+icon: 'arrow-up-right-dots'
+---
+
+## Breaking Changes (Recent)
+
+This guide covers recent breaking changes in Paragrafs. Please review these changes carefully when upgrading to ensure your code continues to work as expected.
+
+### Hints are Normalized by Default
+
+<Warning>
+  **Breaking Change**: `createHints(...)` now uses Arabic-first normalization for matching and mining by default.
+</Warning>
+
+#### What Changed
+
+The `createHints` function now applies Arabic-first normalization automatically. This normalization is:
+- **Diacritics tolerant** - removes Arabic diacritical marks
+- **Punctuation tolerant** - handles various punctuation marks
+- **More robust** - better matching for Arabic text with variations
+
+#### Impact
+
+If you previously relied on exact string matching for hints, your code may behave differently:
+
+```typescript Before (Exact Matching)
+import { createHints } from 'paragrafs';
+
+// Previously matched exact strings only
+const hints = createHints('مرحباً', 'السلام عليكم');
+// Only matched text with exact diacritics and punctuation
+```
+
+```typescript After (Normalized Matching)
+import { createHints } from 'paragrafs';
+
+// Now uses normalization by default
+const hints = createHints('مرحباً', 'السلام عليكم');
+// Matches variations: 'مرحبا', 'مرحباً', 'مرحبا،' etc.
+```
+
+#### Migration Steps
+
+<Steps>
+  <Step title="Review your hint usage">
+    Identify all places where you use `createHints` in your codebase:
+    ```bash
+    grep -r "createHints" .
+    ```
+  </Step>
+  
+  <Step title="Update expectations">
+    If you relied on exact matching, update your code to account for normalized matching behavior. The function now matches more liberally with Arabic text.
+  </Step>
+  
+  <Step title="Configure normalization (optional)">
+    If needed, pass explicit normalization options:
+    ```typescript
+    const hints = createHints(
+      { normalizeAlef: true, removeDiacritics: true },
+      'مرحباً',
+      'السلام عليكم'
+    );
+    ```
+  </Step>
+  
+  <Step title="Test thoroughly">
+    Run your test suite to ensure hint matching behaves as expected:
+    ```bash
+    bun test --coverage
+    ```
+  </Step>
+</Steps>
+
+#### Reference
+
+See [src/utils/textUtils.ts:121-156](https://github.com/ragaeeb/paragrafs/blob/main/src/utils/textUtils.ts#L121-L156) for implementation details.
+
+---
+
+### ALWAYS_BREAK is a True Hard Boundary
+
+<Warning>
+  **Breaking Change**: Segments or lines after an `ALWAYS_BREAK` must not be merged into previous segments.
+</Warning>
+
+#### What Changed
+
+The `ALWAYS_BREAK` marker now enforces a strict boundary that cannot be crossed during segment merging operations.
+
+#### Impact
+
+Previously, some merging logic might have combined segments across `ALWAYS_BREAK` markers. This is no longer allowed:
+
+```typescript Before (Soft Boundary)
+const segments = markAndCombineSegments(tokens, options);
+// ALWAYS_BREAK could sometimes be crossed during merging
+```
+
+```typescript After (Hard Boundary)
+const segments = markAndCombineSegments(tokens, options);
+// ALWAYS_BREAK creates an absolute boundary
+// Segments after ALWAYS_BREAK will never merge with previous segments
+```
+
+#### Migration Steps
+
+<Steps>
+  <Step title="Identify ALWAYS_BREAK usage">
+    Find where you use `ALWAYS_BREAK` markers in your code:
+    ```typescript
+    import { ALWAYS_BREAK } from 'paragrafs';
+    ```
+  </Step>
+  
+  <Step title="Review segment boundaries">
+    Check if your code expects segments to merge across `ALWAYS_BREAK` markers. If so, update your logic to use `SEGMENT_BREAK` instead for soft boundaries.
+  </Step>
+  
+  <Step title="Update merging logic">
+    If you have custom merging logic, ensure it respects `ALWAYS_BREAK` as a hard boundary:
+    ```typescript
+    // Don't merge if previous segment ends with ALWAYS_BREAK
+    if (previousSegment.tokens.includes(ALWAYS_BREAK)) {
+      // Start a new segment
+    }
+    ```
+  </Step>
+  
+  <Step title="Validate output">
+    Test your segmentation output to ensure boundaries are preserved correctly.
+  </Step>
+</Steps>
+
+#### Reference
+
+See the following for implementation details:
+- [src/transcript.ts:95-167](https://github.com/ragaeeb/paragrafs/blob/main/src/transcript.ts#L95-L167)
+- [src/transcript.ts:173-211](https://github.com/ragaeeb/paragrafs/blob/main/src/transcript.ts#L173-L211)
+
+---
+
+## General Migration Tips
+
+<AccordionGroup>
+  <Accordion title="Run tests after upgrading">
+    Always run your full test suite after upgrading:
+    ```bash
+    bun test --coverage
+    ```
+    This helps identify any breaking changes that affect your specific use case.
+  </Accordion>
+  
+  <Accordion title="Check TypeScript types">
+    Run TypeScript compilation to catch any type-related issues:
+    ```bash
+    bun run build
+    ```
+  </Accordion>
+  
+  <Accordion title="Review the changelog">
+    Check the [changelog](/resources/changelog) for a complete list of changes in each version.
+  </Accordion>
+  
+  <Accordion title="Use semantic versioning">
+    Pin to specific versions in your package.json to avoid unexpected breaking changes:
+    ```json
+    {
+      "dependencies": {
+        "paragrafs": "1.6.0"
+      }
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Need Help?
+
+<CardGroup cols={2}>
+  <Card title="Report Issues" icon="github" href="https://github.com/ragaeeb/paragrafs/issues">
+    Found a bug or need help migrating? Open an issue on GitHub
+  </Card>
+  <Card title="API Reference" icon="book" href="/api/transcript-builders">
+    Review the complete API documentation
+  </Card>
+</CardGroup>

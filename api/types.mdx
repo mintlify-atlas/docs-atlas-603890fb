@@ -1,0 +1,342 @@
+---
+title: Types
+description: TypeScript types and interfaces used throughout the library
+---
+
+Paragrafs is fully typed with TypeScript. This page documents all exported types and interfaces.
+
+## Core Types
+
+### Token
+
+Represents a single token (word or phrase) with timing information. This is the basic unit of transcribed text.
+
+```typescript
+type Token = {
+  start: number;  // Start time in seconds
+  end: number;    // End time in seconds
+  text: string;   // The transcribed text
+};
+```
+
+**Example:**
+```typescript
+const token: Token = {
+  start: 0,
+  end: 1.5,
+  text: 'Hello'
+};
+```
+
+---
+
+### Segment
+
+Represents a segment of text with timing information and optional word-level tokens. A segment is a higher-level structure that contains a sequence of related tokens.
+
+```typescript
+type Segment = Token & {
+  tokens: Token[];  // Word-by-word breakdown of the transcription
+};
+```
+
+**Example:**
+```typescript
+const segment: Segment = {
+  start: 0,
+  end: 5,
+  text: 'Hello world',
+  tokens: [
+    { start: 0, end: 2, text: 'Hello' },
+    { start: 2, end: 5, text: 'world' }
+  ]
+};
+```
+
+---
+
+## Marked Types
+
+### MarkedToken
+
+Represents either a token or a segment break marker. Used during the processing of text to identify natural break points.
+
+```typescript
+type MarkedToken = Token | AlwaysBreakMarker | SegmentBreakMarker;
+```
+
+The special markers are:
+- `SEGMENT_BREAK` - Soft break marker (can be ignored if duration constraints allow)
+- `ALWAYS_BREAK` - Hard break marker (must create a new segment/line)
+
+**Example:**
+```typescript
+import { markTokensWithDividers, SEGMENT_BREAK, ALWAYS_BREAK } from 'paragrafs';
+
+const marked: MarkedToken[] = [
+  { start: 0, end: 1, text: 'Hello' },
+  SEGMENT_BREAK,
+  { start: 1, end: 2, text: 'world' }
+];
+```
+
+---
+
+### MarkedSegment
+
+Represents a segment during the marking and processing stage. Contains an array of tokens that may include segment break markers.
+
+```typescript
+type MarkedSegment = {
+  start: number;          // Start time of the segment in seconds
+  end: number;            // End time of the segment in seconds
+  tokens: MarkedToken[];  // Array of tokens and segment break markers
+};
+```
+
+**Example:**
+```typescript
+const markedSegment: MarkedSegment = {
+  start: 0,
+  end: 5,
+  tokens: [
+    { start: 0, end: 1, text: 'Hello' },
+    SEGMENT_BREAK,
+    { start: 1, end: 2, text: 'world.' },
+    SEGMENT_BREAK
+  ]
+};
+```
+
+---
+
+## Ground Truth Types
+
+### GroundedToken
+
+Represents a token that was matched or unmatched during sync with the ground truth value.
+
+```typescript
+type GroundedToken = Token & {
+  isUnknown?: boolean;  // If true, this token was not matched during ground truth syncing
+};
+```
+
+**Example:**
+```typescript
+const groundedToken: GroundedToken = {
+  start: 0,
+  end: 1,
+  text: 'corrected',
+  isUnknown: true  // This word was interpolated, not matched
+};
+```
+
+---
+
+### GroundedSegment
+
+Represents a segment that was updated with ground truth values.
+
+```typescript
+type GroundedSegment = Omit<Segment, 'tokens'> & {
+  tokens: GroundedToken[];
+};
+```
+
+**Example:**
+```typescript
+const groundedSegment: GroundedSegment = {
+  start: 0,
+  end: 5,
+  text: 'The quick brown fox',
+  tokens: [
+    { start: 0, end: 1, text: 'The' },
+    { start: 1, end: 2, text: 'quick', isUnknown: true },
+    { start: 2, end: 4, text: 'brown', isUnknown: true },
+    { start: 4, end: 5, text: 'fox' }
+  ]
+};
+```
+
+---
+
+## Hint Types
+
+### Hints
+
+Contains a map of normalized hints and the normalization options used.
+
+```typescript
+type Hints = {
+  map: HintMap;                              // Map of hints organized by first word
+  normalization: Required<ArabicNormalizationOptions>;  // Normalization settings
+};
+```
+
+**Example:**
+```typescript
+import { createHints } from 'paragrafs';
+
+const hints: Hints = createHints('hello world', 'good morning');
+```
+
+---
+
+### HintMap
+
+Organizes hints by their first normalized word for efficient matching.
+
+```typescript
+type HintMap = Record<string, string[][]>;
+```
+
+The outer key is the first word of a hint phrase. The value is an array of word arrays representing different hints that start with that word.
+
+---
+
+### GeneratedHint
+
+Represents a hint candidate discovered by the hint generation functions.
+
+```typescript
+type GeneratedHint = {
+  phrase: string;               // The most common surface form
+  normalizedPhrase: string;     // The normalized version
+  count: number;                // Number of occurrences
+  length: number;               // Number of words in the phrase
+  firstOccurrenceIndex?: number;  // Token index of first occurrence
+  topSurfaceForms?: string[];   // Up to 3 most common variations
+};
+```
+
+**Example:**
+```typescript
+const hint: GeneratedHint = {
+  phrase: 'أحسن الله إليكم',
+  normalizedPhrase: 'احسن الله اليكم',
+  count: 5,
+  length: 3,
+  firstOccurrenceIndex: 0,
+  topSurfaceForms: ['أحسن الله إليكم', 'أَحْسَنَ الله إليكم']
+};
+```
+
+---
+
+## Option Types
+
+### ArabicNormalizationOptions
+
+Configuration for Arabic text normalization.
+
+```typescript
+type ArabicNormalizationOptions = {
+  normalizeAlef?: boolean;   // Convert أإآ → ا (default: true)
+  normalizeHamza?: boolean;  // Normalize hamza variations (default: false)
+  normalizeYa?: boolean;     // Convert ى → ي (default: true)
+  removeTatweel?: boolean;   // Remove tatweel ـ (default: true)
+};
+```
+
+**Example:**
+```typescript
+const options: ArabicNormalizationOptions = {
+  normalizeAlef: true,
+  normalizeYa: true,
+  removeTatweel: true,
+  normalizeHamza: false
+};
+```
+
+---
+
+### MarkTokensWithDividersOptions
+
+Options for the `markTokensWithDividers` function.
+
+```typescript
+type MarkTokensWithDividersOptions = {
+  fillers?: string[];      // Filler words to mark as breaks
+  gapThreshold: number;    // Minimum time gap for a break (seconds)
+  hints?: Hints;           // Multi-word hints for hard breaks
+};
+```
+
+---
+
+### MarkAndCombineSegmentsOptions
+
+Options for the `markAndCombineSegments` function.
+
+```typescript
+type MarkAndCombineSegmentsOptions = MarkTokensWithDividersOptions & {
+  maxSecondsPerSegment: number;  // Maximum segment duration
+  minWordsPerSegment: number;    // Minimum words to avoid merging
+};
+```
+
+**Example:**
+```typescript
+const options: MarkAndCombineSegmentsOptions = {
+  fillers: ['uh', 'umm'],
+  gapThreshold: 3,
+  maxSecondsPerSegment: 12,
+  minWordsPerSegment: 3
+};
+```
+
+---
+
+### GenerateHintsOptions
+
+Options for hint generation functions.
+
+```typescript
+type GenerateHintsOptions = {
+  minN?: number;                      // Min n-gram length (default: 2)
+  maxN?: number;                      // Max n-gram length (default: 6)
+  minCount?: number;                  // Min occurrences (default: 2)
+  topK?: number;                      // Max hints to return (default: Infinity)
+  dedupe?: 'closed' | 'none';         // Deduplication strategy (default: 'closed')
+  stopwords?: string[];               // Words to ignore (default: [])
+  normalization?: ArabicNormalizationOptions;  // Normalization options
+  boundaryStrategy?: 'segment' | 'none';  // Only for generateHintsFromSegments
+};
+```
+
+**Example:**
+```typescript
+const options: GenerateHintsOptions = {
+  minN: 2,
+  maxN: 4,
+  minCount: 3,
+  topK: 50,
+  dedupe: 'closed',
+  normalization: { normalizeAlef: true }
+};
+```
+
+---
+
+## Import All Types
+
+All types are exported from the main package:
+
+```typescript
+import type {
+  Token,
+  Segment,
+  MarkedToken,
+  MarkedSegment,
+  GroundedToken,
+  GroundedSegment,
+  Hints,
+  HintMap,
+  GeneratedHint,
+  ArabicNormalizationOptions,
+  MarkTokensWithDividersOptions,
+  MarkAndCombineSegmentsOptions,
+  GenerateHintsOptions
+} from 'paragrafs';
+```

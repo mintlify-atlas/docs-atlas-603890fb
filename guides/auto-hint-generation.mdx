@@ -1,0 +1,336 @@
+---
+title: Auto-Hint Generation
+description: Automatically discover repeated phrases from token streams to improve transcription segmentation
+---
+
+## Overview
+
+Auto-hint generation is a powerful feature that mines frequent n-grams (repeated phrases) from your transcription data. This is especially useful for Arabic transcriptions where common religious phrases or formulaic expressions appear frequently.
+
+## Why Use Hints?
+
+Hints allow you to mark specific phrases that should trigger paragraph breaks, creating more natural segmentation. Common use cases include:
+
+- Religious phrases ("أحسن الله إليكم", "بارك الله فيكم")
+- Recurring formulaic expressions
+- Speaker transitions or section markers
+- Domain-specific terminology
+
+## Basic Hint Generation
+
+Use `generateHintsFromTokens` to discover repeated phrases:
+
+```typescript
+import { generateHintsFromTokens, createHints, markTokensWithDividers } from 'paragrafs';
+
+const tokens = [
+  { start: 0, end: 1, text: 'أَحْسَنَ' },
+  { start: 1, end: 2, text: 'الله' },
+  { start: 2, end: 3, text: 'إليكم،' },
+  // ... repeated later in the stream ...
+  { start: 10, end: 11, text: 'أَحْسَنَ' },
+  { start: 11, end: 12, text: 'الله' },
+  { start: 12, end: 13, text: 'إليكم،' },
+];
+
+const mined = generateHintsFromTokens(tokens, {
+  minN: 2,        // Minimum phrase length (words)
+  maxN: 4,        // Maximum phrase length (words)
+  minCount: 2,    // Minimum occurrences to be considered
+  dedupe: 'closed',
+  normalization: { normalizeAlef: true },
+});
+
+console.log(mined);
+// Returns array of GeneratedHint objects sorted by frequency
+```
+
+## How It Works
+
+<Steps>
+  <Step title="Normalize tokens">
+    Tokens are normalized using Arabic-first normalization (diacritics removal, alef/ya normalization).
+  </Step>
+  <Step title="Count n-grams">
+    Frequent n-grams are counted from the normalized token stream based on `minN` and `maxN` parameters.
+  </Step>
+  <Step title="Filter by frequency">
+    Only phrases occurring at least `minCount` times are kept as candidates.
+  </Step>
+  <Step title="Deduplicate">
+    If `dedupe: 'closed'`, subphrases that always occur within longer phrases are removed.
+  </Step>
+  <Step title="Sort and return">
+    Results are sorted by count (descending), then by phrase length, then alphabetically.
+  </Step>
+</Steps>
+
+## GeneratedHint Object
+
+The mining process returns `GeneratedHint` objects:
+
+```typescript
+type GeneratedHint = {
+  count: number;                    // How many times it appears
+  firstOccurrenceIndex?: number;    // Index of first occurrence
+  length: number;                   // Number of words in phrase
+  normalizedPhrase: string;         // Normalized version for matching
+  phrase: string;                   // Most common surface form
+  topSurfaceForms?: string[];       // Top 3 variants seen
+};
+```
+
+## Configuration Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `minN` | `number` | `2` | Minimum phrase length in words |
+| `maxN` | `number` | `6` | Maximum phrase length in words |
+| `minCount` | `number` | `2` | Minimum occurrences required |
+| `topK` | `number` | `Infinity` | Maximum number of hints to return |
+| `dedupe` | `'closed' \| 'none'` | `'closed'` | Deduplication strategy |
+| `stopwords` | `string[]` | `[]` | Words to ignore (phrases of only stopwords excluded) |
+| `normalization` | `ArabicNormalizationOptions` | See below | Normalization settings |
+| `boundaryStrategy` | `'none' \| 'segment'` | `'segment'` | Whether phrases can cross segment boundaries |
+
+### Normalization Options
+
+Default normalization for Arabic-first processing:
+
+```typescript
+{
+  normalizeAlef: true,   // ا ← أ, إ, آ
+  normalizeHamza: false, // Preserve hamza distinctions
+  normalizeYa: true,     // ي ← ى
+  removeTatweel: true,   // Remove tatweel (ـ)
+}
+```
+
+## Using Generated Hints
+
+Once you've mined hints, convert them to a `Hints` object and use them during segmentation:
+
+```typescript
+import { 
+  createHints, 
+  generateHintsFromTokens, 
+  markTokensWithDividers 
+} from 'paragrafs';
+
+const tokens = [
+  { start: 0, end: 1, text: 'أَحْسَنَ' },
+  { start: 1, end: 2, text: 'الله' },
+  { start: 2, end: 3, text: 'إليكم،' },
+  // ... more tokens ...
+];
+
+// Mine frequent phrases
+const mined = generateHintsFromTokens(tokens, {
+  minN: 2,
+  maxN: 4,
+  minCount: 2,
+  dedupe: 'closed',
+  normalization: { normalizeAlef: true },
+});
+
+// Take top 25 phrases and create hints
+const hints = createHints(
+  { normalizeAlef: true },
+  ...mined.slice(0, 25).map((h) => h.phrase)
+);
+
+// Use hints during segmentation
+const marked = markTokensWithDividers(tokens, {
+  fillers: [],
+  gapThreshold: 999,  // High threshold since we're using hints
+  hints,
+});
+```
+
+<Note>
+When a hint is matched, an `ALWAYS_BREAK` marker is inserted, which creates a hard boundary that prevents segments from being merged.
+</Note>
+
+## Generating from Segments
+
+For segment-based transcriptions, use `generateHintsFromSegments`:
+
+```typescript
+import { generateHintsFromSegments } from 'paragrafs';
+
+const segments = [
+  {
+    start: 0,
+    end: 5,
+    text: 'First segment',
+    tokens: [/* ... */],
+  },
+  {
+    start: 6,
+    end: 10,
+    text: 'Second segment',
+    tokens: [/* ... */],
+  },
+];
+
+// Default: phrases cannot cross segment boundaries
+const mined = generateHintsFromSegments(segments, {
+  boundaryStrategy: 'segment',  // or 'none' to allow cross-segment
+  minN: 2,
+  maxN: 4,
+  minCount: 2,
+});
+```
+
+### Boundary Strategies
+
+- **`'segment'` (default)**: Phrases cannot span across segment boundaries. Each segment is mined independently, then results are merged.
+- **`'none'`**: Phrases can span segment boundaries. All tokens are treated as a continuous stream.
+
+## Deduplication Strategies
+
+### Closed Deduplication (`dedupe: 'closed'`)
+
+Removes subphrases that always appear within longer phrases:
+
+```typescript
+// If "الله إليكم" always appears within "أحسن الله إليكم"
+// and they have the same count, the shorter one is removed
+
+const mined = generateHintsFromTokens(tokens, {
+  dedupe: 'closed',  // Remove closed subphrases
+  minN: 2,
+  maxN: 4,
+});
+```
+
+### No Deduplication (`dedupe: 'none'`)
+
+Keeps all frequent phrases, including subphrases:
+
+```typescript
+const mined = generateHintsFromTokens(tokens, {
+  dedupe: 'none',  // Keep all frequent phrases
+  minN: 2,
+  maxN: 4,
+});
+```
+
+## Limiting Results
+
+Control the number of hints returned:
+
+```typescript
+// Get only top 10 most frequent phrases
+const mined = generateHintsFromTokens(tokens, {
+  topK: 10,
+  minN: 2,
+  maxN: 4,
+});
+
+// Or slice the results after generation
+const allMined = generateHintsFromTokens(tokens);
+const top25 = allMined.slice(0, 25);
+```
+
+## Working with Stopwords
+
+Exclude phrases that consist only of common words:
+
+```typescript
+const mined = generateHintsFromTokens(tokens, {
+  stopwords: ['في', 'من', 'إلى', 'على'],
+  minN: 2,
+  maxN: 4,
+});
+// Phrases like "في من" will be excluded
+```
+
+## Surface Form Variants
+
+The mining process tracks multiple surface forms for normalized phrases:
+
+```typescript
+const hint = mined[0];
+console.log(hint.phrase);           // "أحسن الله إليكم"
+console.log(hint.normalizedPhrase); // "احسن الله اليكم"
+console.log(hint.topSurfaceForms);  // ["أحسن الله إليكم", "أَحْسَنَ اللهُ إليكم،"]
+```
+
+This is useful for understanding text variation in your corpus.
+
+## Complete Example
+
+```typescript
+import {
+  generateHintsFromSegments,
+  createHints,
+  markAndCombineSegments,
+  mapSegmentsIntoFormattedSegments,
+} from 'paragrafs';
+
+// Your transcription segments
+const segments = [
+  // ... many segments with Arabic text ...
+];
+
+// Step 1: Mine frequent phrases
+const mined = generateHintsFromSegments(segments, {
+  minN: 2,
+  maxN: 5,
+  minCount: 3,
+  dedupe: 'closed',
+  topK: 30,
+  normalization: {
+    normalizeAlef: true,
+    normalizeYa: true,
+    removeTatweel: true,
+  },
+});
+
+// Step 2: Create hints from top phrases
+const hints = createHints(
+  { normalizeAlef: true, normalizeYa: true },
+  ...mined.map((h) => h.phrase)
+);
+
+// Step 3: Re-process segments with discovered hints
+const options = {
+  fillers: [],
+  gapThreshold: 3,
+  maxSecondsPerSegment: 15,
+  minWordsPerSegment: 5,
+  hints,
+};
+
+const markedSegments = markAndCombineSegments(segments, options);
+const formatted = mapSegmentsIntoFormattedSegments(markedSegments);
+
+console.log(formatted);
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Choose appropriate minCount">
+    Set `minCount` based on your corpus size. For small datasets (< 100 segments), use `minCount: 2`. For larger datasets, use `minCount: 5` or higher to avoid noise.
+  </Accordion>
+
+  <Accordion title="Tune phrase length">
+    Start with `minN: 2, maxN: 4` for most use cases. Increase `maxN` to 6 or 7 for technical or religious content with longer formulaic phrases.
+  </Accordion>
+
+  <Accordion title="Use normalization consistently">
+    Ensure the normalization options match between `generateHintsFromTokens` and `createHints`. Mismatched normalization will prevent hints from matching.
+  </Accordion>
+
+  <Accordion title="Inspect results before using">
+    Always review the mined hints before using them in production. Some frequent phrases may not be good paragraph boundaries.
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<Card title="Arabic Support" icon="language" href="/guides/arabic-support">
+  Learn more about Arabic text normalization and hint matching
+</Card>

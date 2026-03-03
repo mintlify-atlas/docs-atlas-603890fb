@@ -1,0 +1,383 @@
+---
+title: 'Hints System'
+description: 'Normalized multi-word phrase matching for forcing paragraph boundaries'
+---
+
+## Overview
+
+The hints system allows you to specify multi-word phrases that should always trigger paragraph breaks. It's particularly powerful for Arabic transcriptions with its built-in normalization support.
+
+## Creating Hints
+
+Hints are created from one or more phrases:
+
+```typescript
+import { createHints } from 'paragrafs';
+
+const hints = createHints(
+    'next topic',
+    'moving on',
+    'in conclusion'
+);
+```
+
+## How Hints Work
+
+Hints are organized into a map indexed by the first word of each phrase:
+
+```typescript
+export type HintMap = Record<string, string[][]>;
+
+export type Hints = {
+    map: HintMap;
+    normalization: Required<ArabicNormalizationOptions>;
+};
+```
+
+### Example Structure
+
+```typescript
+const hints = createHints('next topic', 'next section', 'moving on');
+
+// Internal structure:
+// {
+//   map: {
+//     "next": [["next", "topic"], ["next", "section"]],
+//     "moving": [["moving", "on"]]
+//   },
+//   normalization: { ... }
+// }
+```
+
+## ALWAYS_BREAK Marker
+
+When a hint matches, the `ALWAYS_BREAK` marker is inserted:
+
+```typescript
+if (hints && normalizedTexts && isHintMatched(normalizedTexts, hints, idx)) {
+    marked.push(ALWAYS_BREAK);
+}
+```
+
+<Note>
+`ALWAYS_BREAK` creates hard paragraph boundaries that cannot be merged, unlike `SEGMENT_BREAK` which is a soft suggestion.
+</Note>
+
+## Normalization Options
+
+Hints support Arabic-specific normalization for robust matching:
+
+```typescript
+export type ArabicNormalizationOptions = {
+    normalizeAlef?: boolean;    // أإآ → ا
+    normalizeHamza?: boolean;   // ؤئ → ء
+    normalizeYa?: boolean;      // ى → ي
+    removeTatweel?: boolean;    // Remove ـ
+};
+```
+
+### Default Normalization
+
+```typescript
+const DEFAULT_HINT_NORMALIZATION = {
+    normalizeAlef: true,
+    normalizeHamza: false,
+    normalizeYa: true,
+    removeTatweel: true
+};
+```
+
+## Custom Normalization
+
+Override normalization by passing options as the first argument:
+
+```typescript
+const hints = createHints(
+    {
+        normalizeAlef: true,
+        normalizeHamza: true,
+        normalizeYa: true,
+        removeTatweel: true
+    },
+    'الموضوع التالي',  // Next topic in Arabic
+    'في الختام'        // In conclusion in Arabic
+);
+```
+
+<Info>
+All hints in a single `createHints` call use the same normalization settings.
+</Info>
+
+## Token Text Normalization
+
+The `normalizeTokenText` function applies the same normalization to both hints and tokens:
+
+```typescript
+export const normalizeTokenText = (
+    text: string,
+    options?: ArabicNormalizationOptions
+): string => {
+    let input = text;
+
+    // Hamza normalization (if enabled)
+    if (options?.normalizeHamza) {
+        input = input
+            .normalize('NFD')
+            .replace(/\u064A\p{Mn}*\u0654/gu, 'ء')  // ي + hamza
+            .replace(/\u0648\p{Mn}*\u0654/gu, 'ء')  // و + hamza
+            .replace(/[\u0654\u0655]/g, '')          // Remove hamza marks
+            .normalize('NFC');
+    }
+
+    let normalized = normalizeWord(input);
+
+    if (options?.removeTatweel) {
+        normalized = normalized.replace(/\u0640/g, '');
+    }
+
+    if (options?.normalizeAlef) {
+        normalized = normalized.replace(/[أإآ]/g, 'ا');
+    }
+
+    if (options?.normalizeYa) {
+        normalized = normalized.replace(/ى/g, 'ي');
+    }
+
+    return normalized;
+};
+```
+
+## Hint Matching Algorithm
+
+Matching happens in two steps:
+
+### 1. Normalize All Tokens
+
+```typescript
+const normalizedTexts = hints 
+    ? tokens.map(t => normalizeTokenText(t.text, hints.normalization))
+    : null;
+```
+
+### 2. Check for Matches
+
+```typescript
+export const isHintMatched = (
+    normalizedTokens: string[],
+    hints: Hints,
+    index: number
+): boolean => {
+    const key = normalizedTokens[index];
+    const candidates = hints.map[key];
+
+    if (!candidates) {
+        return false;
+    }
+
+    for (const words of candidates) {
+        if (isHintSequenceMatchedAtIndex(normalizedTokens, words, index)) {
+            return true;
+        }
+    }
+
+    return false;
+};
+```
+
+### 3. Verify Sequence Match
+
+```typescript
+const isHintSequenceMatchedAtIndex = (
+    normalizedTokens: string[],
+    words: string[],
+    index: number
+): boolean => {
+    if (index + words.length > normalizedTokens.length) {
+        return false;
+    }
+
+    for (let k = 0; k < words.length; k++) {
+        if (normalizedTokens[index + k] !== words[k]) {
+            return false;
+        }
+    }
+
+    return true;
+};
+```
+
+## Complete Example
+
+```typescript
+import { 
+    createHints,
+    markTokensWithDividers,
+    groupMarkedTokensIntoSegments,
+    mergeShortSegmentsWithPrevious
+} from 'paragrafs';
+
+const tokens = [
+    { start: 0, end: 1, text: "Hello" },
+    { start: 1, end: 2, text: "everyone" },
+    { start: 2, end: 3, text: "Next" },
+    { start: 3, end: 4, text: "topic" },
+    { start: 4, end: 5, text: "will" },
+    { start: 5, end: 6, text: "be" }
+];
+
+// Create hints for "next topic"
+const hints = createHints('next topic');
+
+// Mark tokens with dividers
+const marked = markTokensWithDividers(tokens, {
+    gapThreshold: 1.0,
+    hints
+});
+
+// Result:
+// [
+//   { start: 0, end: 1, text: "Hello" },
+//   { start: 1, end: 2, text: "everyone" },
+//   SEGMENT_BREAK,
+//   ALWAYS_BREAK,              // Inserted because "next topic" matched!
+//   { start: 2, end: 3, text: "Next" },
+//   { start: 3, end: 4, text: "topic" },
+//   { start: 4, end: 5, text: "will" },
+//   { start: 5, end: 6, text: "be" }
+// ]
+```
+
+## Arabic Example
+
+```typescript
+const hints = createHints(
+    {
+        normalizeAlef: true,
+        normalizeYa: true
+    },
+    'الموضوع القادم',  // "The next topic"
+    'وفي الختام'      // "And in conclusion"
+);
+
+const tokens = [
+    { start: 0, end: 1, text: "مرحبا" },
+    { start: 1, end: 2, text: "بكم" },
+    { start: 2, end: 3, text: "الموضوع" },
+    { start: 3, end: 4, text: "القادم" },
+    { start: 4, end: 5, text: "سيكون" }
+];
+
+const marked = markTokensWithDividers(tokens, {
+    gapThreshold: 1.0,
+    hints
+});
+
+// "الموضوع القادم" will be matched even with different diacritics
+// or alef variants in the actual tokens!
+```
+
+<Tip>
+Normalization makes matching robust against variations in diacritics, punctuation, and Arabic letter forms.
+</Tip>
+
+## Using Hints in Paragraph Reconstruction
+
+```typescript
+import { markAndCombineSegments, createHints } from 'paragrafs';
+
+const hints = createHints(
+    'next section',
+    'to summarize',
+    'in conclusion',
+    'moving on'
+);
+
+const markedSegments = markAndCombineSegments(segments, {
+    fillers: ['uh', 'um'],
+    gapThreshold: 1.5,
+    maxSecondsPerSegment: 30,
+    minWordsPerSegment: 5,
+    hints  // Pass hints to force breaks at these phrases
+});
+```
+
+## Finding Matching Tokens
+
+Use `getFirstMatchingToken` to find where a phrase occurs:
+
+```typescript
+import { getFirstMatchingToken } from 'paragrafs';
+
+const tokens = [
+    { start: 0, end: 1, text: 'the' },
+    { start: 1, end: 2, text: 'quick' },
+    { start: 2, end: 3, text: 'brown' },
+    { start: 3, end: 4, text: 'fox' }
+];
+
+const match = getFirstMatchingToken(tokens, 'quick brown');
+// Returns: { start: 1, end: 2, text: 'quick' }
+
+const noMatch = getFirstMatchingToken(tokens, 'lazy dog');
+// Returns: null
+```
+
+<Note>
+This function internally uses `createHints` with default normalization.
+</Note>
+
+## Base Normalization
+
+All normalization builds on `normalizeWord`:
+
+```typescript
+export const normalizeWord = (w: string) => {
+    return w
+        .normalize('NFD')                    // Decompose Unicode
+        .replace(/[\u200B-\u200D\uFEFF]/g, '')  // Zero-width chars
+        .replace(/\p{Mn}/gu, '')             // Combining marks
+        .replace(/[\u064B-\u065F]/g, '')     // Arabic diacritics
+        .replace(/^[\p{P}\p{S}\p{Cf}]+|[\p{P}\p{S}\p{Cf}]+$/gu, '')  // Trim punctuation
+        .normalize('NFC');                   // Recompose Unicode
+};
+```
+
+This handles:
+- **Unicode normalization**: NFD/NFC for consistent representation
+- **Zero-width characters**: U+200B–U+200D, U+FEFF
+- **Combining marks**: Diacritical marks (\p{Mn})
+- **Arabic diacritics**: U+064B–U+065F (fatḥa, ḍamma, kasra, etc.)
+- **Punctuation**: Leading/trailing symbols
+
+## Performance Considerations
+
+Hints are efficient because:
+
+1. **First-word indexing**: Only phrases starting with the current token are checked
+2. **Early termination**: Matching stops as soon as sequence fails
+3. **Single normalization pass**: Tokens are normalized once, not per hint
+
+<Info>
+For large hint sets, the lookup time is O(1) for first-word matching, then O(n) where n is the number of hints sharing the same first word.
+</Info>
+
+## Best Practices
+
+<Tip>
+Group related phrases with the same normalization settings in a single `createHints` call.
+</Tip>
+
+<Warning>
+Very short hints (1-2 words) may cause false positives. Use longer, more specific phrases when possible.
+</Warning>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Paragraph Reconstruction" href="/concepts/paragraph-reconstruction">
+    Learn how hints integrate with the full reconstruction pipeline
+  </Card>
+  <Card title="Ground Truth Alignment" href="/concepts/ground-truth-alignment">
+    Understand normalization in the context of LCS alignment
+  </Card>
+</CardGroup>

@@ -1,0 +1,201 @@
+---
+title: 'Examples'
+description: 'Real-world usage examples and use cases for Paragrafs'
+icon: 'code'
+---
+
+## Use Cases
+
+Paragrafs is designed to solve common challenges when working with AI-generated transcriptions:
+
+<CardGroup cols={3}>
+  <Card title="Transcript Formatting" icon="file-lines">
+    Convert raw transcriptions into readable text with proper paragraph breaks and formatting
+  </Card>
+  <Card title="Subtitle Generation" icon="closed-captioning">
+    Create properly formatted subtitles from audio transcriptions with accurate timestamps
+  </Card>
+  <Card title="Document Reconstruction" icon="file-word">
+    Rebuild properly formatted documents from extracted or transcribed text
+  </Card>
+</CardGroup>
+
+## Code Examples
+
+### Basic Example
+
+Get started with the core functionality of Paragrafs:
+
+```typescript
+import { 
+  estimateSegmentFromToken, 
+  markAndCombineSegments, 
+  mapSegmentsIntoFormattedSegments 
+} from 'paragrafs';
+
+// Example token from transcription
+const token = {
+  start: 0,
+  end: 5,
+  text: 'This is a sample text. It should be properly segmented.',
+};
+
+// Estimate segment with word-level tokens
+const segment = estimateSegmentFromToken(token);
+
+// Combine and format segments
+const formattedSegments = mapSegmentsIntoFormattedSegments([segment]);
+
+console.log(formattedSegments[0].text);
+// Output: "This is a sample text. It should be properly segmented."
+```
+
+### Working with Transcriptions
+
+Process transcription segments with timestamps and formatting options:
+
+```typescript
+import {
+  markAndCombineSegments,
+  mapSegmentsIntoFormattedSegments,
+  formatSegmentsToTimestampedTranscript,
+} from 'paragrafs';
+
+// Example transcription segments
+const segments = [
+  {
+    start: 0,
+    end: 6.5,
+    text: 'The quick brown fox!',
+    tokens: [
+      { start: 0, end: 1, text: 'The' },
+      { start: 1, end: 2, text: 'quick' },
+      { start: 2, end: 3, text: 'brown' },
+      { start: 3, end: 6.5, text: 'fox!' },
+    ],
+  },
+  {
+    start: 8,
+    end: 13,
+    text: 'Jumps right over the',
+    tokens: [
+      { start: 8, end: 9, text: 'Jumps' },
+      { start: 9, end: 10, text: 'right' },
+      { start: 10, end: 11, text: 'over' },
+      { start: 12, end: 13, text: 'the' },
+    ],
+  },
+];
+
+// Options for segment formatting
+const options = {
+  fillers: ['uh', 'umm', 'hmmm'],
+  gapThreshold: 3,
+  maxSecondsPerSegment: 12,
+  minWordsPerSegment: 3,
+};
+
+// Process the segments
+const combinedSegments = markAndCombineSegments(segments, options);
+const formattedSegments = mapSegmentsIntoFormattedSegments(combinedSegments);
+
+// Get timestamped transcript
+const transcript = formatSegmentsToTimestampedTranscript(combinedSegments, 10);
+
+console.log(transcript);
+// Output:
+// 0:00: The quick brown fox!
+// 0:08: Jumps right over the
+```
+
+### Aligning AI Tokens to Human-Edited Text
+
+Synchronize AI-generated tokens with human-edited text using ground-truth alignment:
+
+```typescript
+import { updateSegmentWithGroundTruth } from 'paragrafs';
+
+const rawSegment = {
+  start: 0,
+  end: 10,
+  text: 'The Buick crown flock jumps right over the crazy dog.',
+  tokens: [
+    /* AI-generated word timestamps */
+  ],
+};
+
+const aligned = updateSegmentWithGroundTruth(
+  rawSegment, 
+  'The quick brown fox jumps right over the lazy dog.'
+);
+
+console.log(aligned.tokens);
+// Each token now matches the ground-truth words exactly,
+// with missing words interpolated where needed.
+```
+
+<Note>
+  The ground-truth alignment uses LCS-based matching to replace AI-generated tokens with human-edited text while preserving timing information.
+</Note>
+
+### Auto-generate Hint Candidates (Arabic-first)
+
+Discover repeated phrases in Arabic transcripts for better segmentation:
+
+```typescript
+import { 
+  createHints, 
+  generateHintsFromTokens, 
+  markTokensWithDividers 
+} from 'paragrafs';
+
+const tokens = [
+  { start: 0, end: 1, text: 'أَحْسَنَ' },
+  { start: 1, end: 2, text: 'الله' },
+  { start: 2, end: 3, text: 'إليكم،' },
+  // ... repeated in the stream ...
+];
+
+const mined = generateHintsFromTokens(tokens, {
+  minN: 2,
+  maxN: 4,
+  minCount: 2,
+  dedupe: 'closed',
+  normalization: { normalizeAlef: true },
+});
+
+// Turn mined phrases into matching hints
+const hints = createHints(
+  { normalizeAlef: true }, 
+  ...mined.slice(0, 25).map((h) => h.phrase)
+);
+
+const marked = markTokensWithDividers(tokens, { 
+  fillers: [], 
+  gapThreshold: 999, 
+  hints 
+});
+```
+
+<Info>
+  The hint system uses Arabic-first normalization that is diacritics and punctuation tolerant for robust multi-word hint matching.
+</Info>
+
+## Interactive Demo
+
+Explore Paragrafs with our interactive demo app that exercises the major exported functions with configurable JSON/text inputs:
+
+<Card title="Live Demo" icon="play" href="https://paragrafs.surge.sh">
+  Try Paragrafs in your browser with the Svelte + Vite demo app
+</Card>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="API Reference" icon="book" href="/api/transcript-builders">
+    Explore all available functions and their parameters
+  </Card>
+  <Card title="Contributing" icon="code-pull-request" href="/resources/contributing">
+    Learn how to contribute to Paragrafs
+  </Card>
+</CardGroup>

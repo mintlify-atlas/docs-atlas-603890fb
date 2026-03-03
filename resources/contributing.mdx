@@ -1,0 +1,260 @@
+---
+title: 'Contributing'
+description: 'Guidelines for contributing to Paragrafs'
+icon: 'code-pull-request'
+---
+
+## Welcome Contributors!
+
+Contributions are welcome! We appreciate your interest in improving Paragrafs. Please make sure your contributions adhere to the coding standards and are accompanied by relevant tests.
+
+## Getting Started
+
+Follow these steps to set up your development environment:
+
+<Steps>
+  <Step title="Fork the repository">
+    Fork the [Paragrafs repository](https://github.com/ragaeeb/paragrafs) on GitHub to your account.
+  </Step>
+  
+  <Step title="Install Bun">
+    Paragrafs uses [Bun](https://bun.sh/) as its runtime and package manager. Install it if you haven't already:
+    ```bash
+    curl -fsSL https://bun.sh/install | bash
+    ```
+  </Step>
+  
+  <Step title="Clone and install dependencies">
+    Clone your fork and install dependencies:
+    ```bash
+    git clone https://github.com/YOUR_USERNAME/paragrafs.git
+    cd paragrafs
+    bun install
+    ```
+  </Step>
+  
+  <Step title="Make your changes">
+    Create a new branch and make your changes:
+    ```bash
+    git checkout -b feature/your-feature-name
+    ```
+  </Step>
+</Steps>
+
+## Development Workflow
+
+### Code Quality Checks
+
+Before submitting your changes, ensure they meet our quality standards:
+
+<CodeGroup>
+```bash Linting
+# Run Biome's formatter and linter
+bun run lint
+```
+
+```bash Building
+# Compile the library with tsdown
+bun run build
+```
+
+```bash Testing
+# Run the test suite
+bun test
+
+# Run tests with coverage
+bun test --coverage
+```
+</CodeGroup>
+
+<Note>
+  All three commands (lint, build, and test) should pass without errors before submitting a pull request.
+</Note>
+
+### Project Structure
+
+Paragrafs uses a Bun-native toolchain:
+
+<CardGroup cols={2}>
+  <Card title="tsdown" icon="box">
+    Official bundler for compiling TypeScript (configured in `tsdown.config.ts`)
+  </Card>
+  <Card title="Biome" icon="broom">
+    Fast linter and formatter (configured in `biome.json`)
+  </Card>
+  <Card title="Bun Test" icon="vial">
+    Built-in test runner with coverage support
+  </Card>
+  <Card title="ESM" icon="cube">
+    Modern ES modules format for all output
+  </Card>
+</CardGroup>
+
+## Coding Standards
+
+### TypeScript
+
+- Write type-safe code with proper TypeScript annotations
+- Avoid `any` types when possible
+- Use interfaces for public APIs
+- Export types alongside implementations
+
+### Code Style
+
+<AccordionGroup>
+  <Accordion title="Formatting">
+    Biome handles code formatting automatically. Run `bun run lint` to format your code.
+  </Accordion>
+  
+  <Accordion title="Naming Conventions">
+    - Use camelCase for functions and variables
+    - Use PascalCase for types and interfaces
+    - Use SCREAMING_SNAKE_CASE for constants
+    - Use descriptive names that explain intent
+  </Accordion>
+  
+  <Accordion title="Documentation">
+    - Add JSDoc comments for public APIs
+    - Include examples in complex functions
+    - Document parameters and return types
+    - Explain any non-obvious behavior
+  </Accordion>
+</AccordionGroup>
+
+### Testing Requirements
+
+<Warning>
+  All new features and bug fixes must include relevant tests.
+</Warning>
+
+When writing tests:
+
+- Cover both happy paths and edge cases
+- Use descriptive test names that explain what's being tested
+- Aim for high code coverage (check with `bun test --coverage`)
+- Test public APIs, not implementation details
+- Include tests for Arabic text handling when relevant
+
+```typescript Example Test
+import { describe, expect, test } from 'bun:test';
+import { createHints } from '../src/utils/textUtils';
+
+describe('createHints', () => {
+  test('should normalize Arabic text by default', () => {
+    const hints = createHints('مرحباً');
+    expect(hints).toBeDefined();
+    // Add assertions for normalized behavior
+  });
+});
+```
+
+## Submitting Changes
+
+<Steps>
+  <Step title="Run all quality checks">
+    Before submitting, ensure all checks pass:
+    ```bash
+    bun run lint && bun run build && bun test --coverage
+    ```
+  </Step>
+  
+  <Step title="Commit your changes">
+    Write clear, descriptive commit messages:
+    ```bash
+    git add .
+    git commit -m "feat: add support for custom hint normalization"
+    ```
+  </Step>
+  
+  <Step title="Push to your fork">
+    ```bash
+    git push origin feature/your-feature-name
+    ```
+  </Step>
+  
+  <Step title="Submit a pull request">
+    Open a pull request on GitHub with:
+    - Clear description of the changes
+    - Reference to any related issues
+    - Screenshots or examples if applicable
+    - Confirmation that tests pass
+  </Step>
+</Steps>
+
+## Demo App Development
+
+Paragrafs includes a Svelte + Vite demo app in the `demo/` directory:
+
+```bash Demo Commands
+# Install demo dependencies
+bun run demo:install
+
+# Run development server
+bun run demo:dev
+
+# Build demo app
+bun run demo:build
+
+# Deploy to Surge
+bun run demo:deploy
+```
+
+<Info>
+  The demo depends on the local package via `file:..`, so `demo:build` automatically runs `bun run build` first.
+</Info>
+
+## Contribution Ideas
+
+Looking for ways to contribute? Here are some ideas:
+
+<CardGroup cols={2}>
+  <Card title="Bug Fixes" icon="bug">
+    Check the [issues page](https://github.com/ragaeeb/paragrafs/issues) for reported bugs
+  </Card>
+  <Card title="Documentation" icon="book">
+    Improve examples, add tutorials, or clarify existing docs
+  </Card>
+  <Card title="Performance" icon="gauge-high">
+    Optimize algorithms for better performance
+  </Card>
+  <Card title="Features" icon="sparkles">
+    Propose new features that enhance transcription processing
+  </Card>
+  <Card title="Tests" icon="vial">
+    Increase test coverage or add edge case testing
+  </Card>
+  <Card title="Language Support" icon="language">
+    Enhance support for languages beyond Arabic
+  </Card>
+</CardGroup>
+
+## Code Review Process
+
+After submitting a pull request:
+
+1. **Automated checks** will run (CI build, tests, linting)
+2. **Maintainer review** - a project maintainer will review your code
+3. **Feedback** - you may receive requests for changes
+4. **Approval** - once approved, your PR will be merged
+5. **Release** - your changes will be included in the next release
+
+<Tip>
+  Be responsive to feedback and questions during code review. It helps get your contribution merged faster!
+</Tip>
+
+## Community Guidelines
+
+- Be respectful and constructive in discussions
+- Follow the [code of conduct](https://github.com/ragaeeb/paragrafs/blob/main/CODE_OF_CONDUCT.md) (if available)
+- Help other contributors when possible
+- Ask questions if something is unclear
+
+## License
+
+By contributing to Paragrafs, you agree that your contributions will be licensed under the MIT License.
+
+## Questions?
+
+<Card title="Open an Issue" icon="circle-question" href="https://github.com/ragaeeb/paragrafs/issues">
+  Have questions about contributing? Open an issue and we'll help you get started!
+</Card>

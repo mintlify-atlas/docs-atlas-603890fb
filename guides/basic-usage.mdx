@@ -1,0 +1,176 @@
+---
+title: Basic Usage
+description: Learn the fundamentals of using Paragrafs to reconstruct paragraphs from AI transcriptions
+---
+
+## Overview
+
+Paragrafs provides a simple API for converting raw AI transcription tokens into properly formatted paragraphs. This guide covers the essential functions you'll need to get started.
+
+## Installation
+
+First, install Paragrafs in your project:
+
+<CodeGroup>
+```bash npm
+npm install paragrafs
+```
+
+```bash pnpm
+pnpm install paragrafs
+```
+
+```bash yarn
+yarn add paragrafs
+```
+
+```bash bun
+bun add paragrafs
+```
+</CodeGroup>
+
+## Core Workflow
+
+The basic workflow for processing transcriptions involves three main steps:
+
+<Steps>
+  <Step title="Estimate segments from tokens">
+    Convert multi-word tokens into segments with word-level timing information.
+  </Step>
+  <Step title="Mark and combine segments">
+    Process segments to identify natural paragraph breaks based on fillers, gaps, and punctuation.
+  </Step>
+  <Step title="Format into readable output">
+    Transform marked segments into clean, formatted text.
+  </Step>
+</Steps>
+
+## Quick Start Example
+
+Here's a complete example showing how to process a simple transcription:
+
+```typescript
+import { 
+  estimateSegmentFromToken, 
+  markAndCombineSegments, 
+  mapSegmentsIntoFormattedSegments 
+} from 'paragrafs';
+
+// Example token from transcription
+const token = {
+  start: 0,
+  end: 5,
+  text: 'This is a sample text. It should be properly segmented.',
+};
+
+// Estimate segment with word-level tokens
+const segment = estimateSegmentFromToken(token);
+
+// Combine and format segments
+const formattedSegments = mapSegmentsIntoFormattedSegments([segment]);
+
+console.log(formattedSegments[0].text);
+// Output: "This is a sample text. It should be properly segmented."
+```
+
+## Working with Multiple Segments
+
+For more complex transcriptions with multiple segments, use the complete processing pipeline:
+
+```typescript
+import {
+  markAndCombineSegments,
+  mapSegmentsIntoFormattedSegments,
+} from 'paragrafs';
+
+// Example transcription segments
+const segments = [
+  {
+    start: 0,
+    end: 6.5,
+    text: 'The quick brown fox!',
+    tokens: [
+      { start: 0, end: 1, text: 'The' },
+      { start: 1, end: 2, text: 'quick' },
+      { start: 2, end: 3, text: 'brown' },
+      { start: 3, end: 6.5, text: 'fox!' },
+    ],
+  },
+  {
+    start: 8,
+    end: 13,
+    text: 'Jumps right over the',
+    tokens: [
+      { start: 8, end: 9, text: 'Jumps' },
+      { start: 9, end: 10, text: 'right' },
+      { start: 10, end: 11, text: 'over' },
+      { start: 12, end: 13, text: 'the' },
+    ],
+  },
+];
+
+// Options for segment formatting
+const options = {
+  fillers: ['uh', 'umm', 'hmmm'],
+  gapThreshold: 3,
+  maxSecondsPerSegment: 12,
+  minWordsPerSegment: 3,
+};
+
+// Process the segments
+const combinedSegments = markAndCombineSegments(segments, options);
+const formattedSegments = mapSegmentsIntoFormattedSegments(combinedSegments);
+
+console.log(formattedSegments);
+```
+
+## Configuration Options
+
+The `markAndCombineSegments` function accepts several options to customize paragraph reconstruction:
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `fillers` | `string[]` | Words to treat as filler (e.g., "uh", "umm") that trigger segment breaks |
+| `gapThreshold` | `number` | Minimum time gap in seconds to trigger a segment break |
+| `maxSecondsPerSegment` | `number` | Maximum duration in seconds for a single segment |
+| `minWordsPerSegment` | `number` | Minimum words required for a segment to stand alone |
+| `hints` | `Hints` | Optional multi-word phrase hints for custom break points |
+
+## Core Data Types
+
+Understanding the basic types will help you work effectively with Paragrafs:
+
+```typescript
+type Token = {
+  start: number;  // Start time in seconds
+  end: number;    // End time in seconds
+  text: string;   // The transcribed text
+};
+
+type Segment = Token & {
+  tokens: Token[];  // Word-by-word breakdown with timings
+};
+
+type MarkedSegment = {
+  start: number;
+  end: number;
+  tokens: MarkedToken[];  // Tokens with break markers
+};
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Timestamped Transcripts" icon="clock" href="/guides/timestamped-transcripts">
+    Learn how to create human-readable transcripts with timestamps
+  </Card>
+  <Card title="Ground Truth Alignment" icon="arrows-split-up-and-left" href="/guides/ground-truth-alignment">
+    Align AI tokens with human-edited text
+  </Card>
+  <Card title="Auto-Hint Generation" icon="sparkles" href="/guides/auto-hint-generation">
+    Automatically discover repeated phrases
+  </Card>
+  <Card title="Arabic Support" icon="language" href="/guides/arabic-support">
+    Work with Arabic text normalization
+  </Card>
+</CardGroup>

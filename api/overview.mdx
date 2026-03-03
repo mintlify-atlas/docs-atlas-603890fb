@@ -1,0 +1,102 @@
+---
+title: API Overview
+description: Complete API reference for the Paragrafs TypeScript SDK
+---
+
+Paragrafs provides a comprehensive TypeScript API for processing transcripts, aligning ground truth, and working with timestamped text.
+
+## API Sections
+
+<CardGroup cols={2}>
+  <Card title="Transcript Builders" icon="wand-magic-sparkles" href="/api/transcript-builders">
+    Functions for processing tokens into formatted segments with natural breaks
+  </Card>
+  
+  <Card title="Ground Truth Alignment" icon="crosshairs" href="/api/ground-truth-alignment">
+    Align AI-generated tokens with human-edited text using LCS matching
+  </Card>
+  
+  <Card title="Editor Helpers" icon="pen-to-square" href="/api/editor-helpers">
+    Utilities for finding tokens based on queries or text selections
+  </Card>
+  
+  <Card title="Utility Functions" icon="toolbox" href="/api/utility-functions">
+    Helper functions for timestamps, punctuation, normalization, and more
+  </Card>
+  
+  <Card title="Hint Generation" icon="lightbulb" href="/api/hint-generation">
+    Auto-generate hints from repeated phrases in transcripts (Arabic-first)
+  </Card>
+  
+  <Card title="Types" icon="code" href="/api/types">
+    TypeScript types and interfaces used throughout the library
+  </Card>
+</CardGroup>
+
+## Quick Start
+
+```typescript
+import {
+  estimateSegmentFromToken,
+  markAndCombineSegments,
+  formatSegmentsToTimestampedTranscript,
+} from 'paragrafs';
+
+// Create a segment from a multi-word token
+const token = {
+  start: 0,
+  end: 5,
+  text: 'Hello world from paragrafs'
+};
+const segment = estimateSegmentFromToken(token);
+
+// Process and format segments
+const segments = [segment];
+const processed = markAndCombineSegments(segments, {
+  fillers: ['uh', 'umm'],
+  gapThreshold: 3,
+  maxSecondsPerSegment: 12,
+  minWordsPerSegment: 3,
+});
+
+// Generate timestamped transcript
+const transcript = formatSegmentsToTimestampedTranscript(processed, 10);
+console.log(transcript);
+// Output: "0:00: Hello world from paragrafs"
+```
+
+## Core Concepts
+
+### Tokens
+A `Token` represents a single word or phrase with timing information:
+```typescript
+type Token = {
+  start: number;  // Start time in seconds
+  end: number;    // End time in seconds
+  text: string;   // The transcribed text
+};
+```
+
+### Segments
+A `Segment` is a higher-level structure containing multiple tokens:
+```typescript
+type Segment = Token & {
+  tokens: Token[];  // Word-by-word breakdown
+};
+```
+
+### Markers
+The library uses special markers to indicate segment boundaries:
+- `SEGMENT_BREAK` - Soft break (can be ignored if duration constraints allow)
+- `ALWAYS_BREAK` - Hard break (must create a new segment/line)
+
+## Arabic-First Design
+
+Many functions include Arabic-specific features:
+- Diacritics removal
+- Alef normalization (أإآ → ا)
+- Ya normalization (ى → ي)
+- Tatweel removal (ـ)
+- Arabic punctuation support (؟ ؛)
+
+These normalizations ensure robust matching and hint generation for Arabic transcripts.

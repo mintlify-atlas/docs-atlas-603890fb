@@ -1,0 +1,149 @@
+---
+title: Editor Helpers
+description: Utilities for finding tokens based on queries or text selections
+---
+
+Editor helper functions enable rich text editing experiences by mapping between text queries/selections and their corresponding timestamped tokens.
+
+## getFirstMatchingToken
+
+Searches through an array of tokens and returns the first one whose text sequence matches the given query string. This function uses normalized hint matching for robust searching.
+
+```typescript
+function getFirstMatchingToken(
+  tokens: Token[],
+  query: string
+): Token | null
+```
+
+### Parameters
+
+<ParamField path="tokens" type="Token[]" required>
+  An ordered array of Token objects to search
+</ParamField>
+
+<ParamField path="query" type="string" required>
+  A string containing one or more words to match. If you pass multiple words (e.g. "hello world"), it will only match if "hello" at position `i` is immediately followed by "world" at position `i+1`.
+</ParamField>
+
+### Returns
+
+<ResponseField name="token" type="Token | null">
+  The first Token in the array where the hint sequence matches, or `null` if no matching sequence is found
+</ResponseField>
+
+### Example
+
+```typescript
+import { getFirstMatchingToken } from 'paragrafs';
+
+const tokens = [
+  { start: 0, end: 1, text: 'the' },
+  { start: 1, end: 2, text: 'quick' },
+  { start: 2, end: 3, text: 'brown' },
+  { start: 3, end: 4, text: 'fox' },
+];
+
+// Single word query
+const result1 = getFirstMatchingToken(tokens, 'brown');
+console.log(result1);
+// { start: 2, end: 3, text: 'brown' }
+
+// Multi-word query
+const result2 = getFirstMatchingToken(tokens, 'quick brown');
+console.log(result2);
+// { start: 1, end: 2, text: 'quick' }  // Returns the first token of the match
+
+// No match
+const result3 = getFirstMatchingToken(tokens, 'lazy dog');
+console.log(result3);
+// null
+```
+
+### Use Cases
+
+- **Jump to timestamp**: Allow users to search for a phrase and jump to its timestamp in a video/audio player
+- **Highlight matching**: Find and highlight all occurrences of a search term in a transcript viewer
+- **Navigation**: Enable keyboard shortcuts to jump between search results
+
+---
+
+## getFirstTokenForSelection
+
+Finds and returns the first token in a segment whose character range fully contains the given `[selectionStart, selectionEnd)` range.
+
+This is useful when you have a selection in the raw `segment.text` (for example, from an `<input>`'s `selectionStart` and `selectionEnd`) and you want to map that back to the corresponding timed `Token`.
+
+```typescript
+function getFirstTokenForSelection(
+  segment: Segment,
+  selectionStart: number,
+  selectionEnd: number
+): Token | null
+```
+
+### Parameters
+
+<ParamField path="segment" type="Segment" required>
+  The Segment object containing the full `text` and an ordered list of `tokens`
+</ParamField>
+
+<ParamField path="selectionStart" type="number" required>
+  The zero-based index into `segment.text` where the selection begins (inclusive)
+</ParamField>
+
+<ParamField path="selectionEnd" type="number" required>
+  The zero-based index into `segment.text` where the selection ends (exclusive)
+</ParamField>
+
+### Returns
+
+<ResponseField name="token" type="Token | null">
+  The first Token whose span in `segment.text` covers the entire selection range, or `null` if not found
+</ResponseField>
+
+### Example
+
+```typescript
+import { getFirstTokenForSelection } from 'paragrafs';
+
+const segment = {
+  text: 'the fox and the rabbit',
+  start: 0,
+  end: 6,
+  tokens: [
+    { start: 0, end: 1, text: 'the' },
+    { start: 2, end: 3, text: 'fox' },
+    { start: 3, end: 4, text: 'and' },
+    { start: 4, end: 5, text: 'the' },
+    { start: 5, end: 6, text: 'rabbit' },
+  ],
+};
+
+// User selects the second "the" in an input field
+// "the fox and the rabbit"
+//              ^^^
+// Character positions 12-15 (exclusive end)
+const token = getFirstTokenForSelection(segment, 12, 15);
+console.log(token);
+// { start: 4, end: 5, text: 'the' }
+
+// Select "rabbit"
+// "the fox and the rabbit"
+//                  ^^^^^^
+// Character positions 16-22
+const rabbitToken = getFirstTokenForSelection(segment, 16, 22);
+console.log(rabbitToken);
+// { start: 5, end: 6, text: 'rabbit' }
+```
+
+### Use Cases
+
+- **Text editor integration**: Map cursor position or text selection to timestamp for audio/video synchronization
+- **Rich text editing**: Allow users to click on a word in a transcript and jump to that point in the media
+- **Selection-based actions**: Enable features like "play from selection" or "edit selected word"
+- **Duplicate word handling**: The function correctly handles duplicate words by tracking position in the text
+
+### Implementation Notes
+
+The function tracks its search position through the text to correctly handle duplicate words. For example, if "the" appears multiple times, it will match the correct occurrence based on the selection position rather than always returning the first "the".
