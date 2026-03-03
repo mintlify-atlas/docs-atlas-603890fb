@@ -108,29 +108,20 @@ const segments = markAndCombineSegments(tokens, options);
 #### Migration Steps
 
 <Steps>
-  <Step title="Identify ALWAYS_BREAK usage">
-    Find where you use `ALWAYS_BREAK` markers in your code:
-    ```typescript
-    import { ALWAYS_BREAK } from 'paragrafs';
-    ```
+  <Step title="Review hint usage">
+    If you use `createHints()` to create custom hints, be aware that matched hints now insert `ALWAYS_BREAK` markers that cannot be crossed during segment merging.
   </Step>
   
-  <Step title="Review segment boundaries">
-    Check if your code expects segments to merge across `ALWAYS_BREAK` markers. If so, update your logic to use `SEGMENT_BREAK` instead for soft boundaries.
+  <Step title="Check segment expectations">
+    Review your code to ensure it doesn't expect segments to merge across hint boundaries. Hints now create hard boundaries that are strictly preserved.
   </Step>
   
-  <Step title="Update merging logic">
-    If you have custom merging logic, ensure it respects `ALWAYS_BREAK` as a hard boundary:
-    ```typescript
-    // Don't merge if previous segment ends with ALWAYS_BREAK
-    if (previousSegment.tokens.includes(ALWAYS_BREAK)) {
-      // Start a new segment
-    }
-    ```
+  <Step title="Test segmentation output">
+    Run your segmentation logic and verify that hint-marked boundaries are preserved as expected. If you need softer boundaries, consider adjusting your hint strategy.
   </Step>
   
-  <Step title="Validate output">
-    Test your segmentation output to ensure boundaries are preserved correctly.
+  <Step title="Validate results">
+    Test your complete transcription workflow to ensure the stricter boundaries produce the desired output.
   </Step>
 </Steps>
 

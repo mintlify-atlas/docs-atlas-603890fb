@@ -69,15 +69,24 @@ The special markers are:
 - `SEGMENT_BREAK` - Soft break marker (can be ignored if duration constraints allow)
 - `ALWAYS_BREAK` - Hard break marker (must create a new segment/line)
 
+<Note>
+These markers are inserted automatically by `markTokensWithDividers` and other processing functions. You don't typically need to import or create them manually.
+</Note>
+
 **Example:**
 ```typescript
-import { markTokensWithDividers, SEGMENT_BREAK, ALWAYS_BREAK } from 'paragrafs';
+import { markTokensWithDividers } from 'paragrafs';
 
-const marked: MarkedToken[] = [
+const tokens = [
   { start: 0, end: 1, text: 'Hello' },
-  SEGMENT_BREAK,
-  { start: 1, end: 2, text: 'world' }
+  { start: 1, end: 2, text: 'world.' }
 ];
+
+// The function inserts markers automatically
+const marked = markTokensWithDividers(tokens, {
+  gapThreshold: 1.0
+});
+// marked now contains tokens with SEGMENT_BREAK markers after punctuation
 ```
 
 ---
